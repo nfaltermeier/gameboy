@@ -49,6 +49,10 @@ impl Memory {
     pub fn write_8(&mut self, addr: u16, val: u8) {
         self.mem[addr as usize] = val;
     }
+
+    pub fn mut_8(&mut self, addr: u16) -> &mut u8 {
+        &mut self.mem[addr as usize]
+    }
 }
 
 impl Default for Memory {
