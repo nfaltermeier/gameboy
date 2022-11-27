@@ -35,6 +35,14 @@ pub struct Registers {
     pub sp: u16,
 }
 
+impl Registers {
+    pub fn set_flags_unchecked(&mut self, data: u8) {
+        unsafe {
+            self.f = RegisterFlags::from_bits_unchecked(data);
+        }
+    }
+}
+
 #[repr(C)]
 pub struct Memory {
     pub r: Registers,

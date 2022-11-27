@@ -1,17 +1,19 @@
+use bitmatch::bitmatch;
+
 use crate::memory::Memory;
 use crate::operations::*;
 
-fn get_register_mut(m: &mut Memory, code: u8) -> &mut u8 {
+fn get_register_mut(mem: &mut Memory, code: u8) -> &mut u8 {
     unsafe {
         match code {
-            0b00000111 => &mut m.r.a,
-            0 => &mut m.r.bc.ind.0,
-            0b00000001 => &mut m.r.bc.ind.1,
-            0b00000010 => &mut m.r.de.ind.0,
-            0b00000011 => &mut m.r.de.ind.1,
-            0b00000100 => &mut m.r.bc.ind.0,
-            0b00000101 => &mut m.r.bc.ind.1,
-            0b00000110 => m.mut_8(m.r.hl.comb),
+            0b00000111 => &mut mem.r.a,
+            0 => &mut mem.r.bc.ind.0,
+            0b00000001 => &mut mem.r.bc.ind.1,
+            0b00000010 => &mut mem.r.de.ind.0,
+            0b00000011 => &mut mem.r.de.ind.1,
+            0b00000100 => &mut mem.r.bc.ind.0,
+            0b00000101 => &mut mem.r.bc.ind.1,
+            0b00000110 => mem.mut_8(mem.r.hl.comb),
             _ => panic!(
                 "Unrecognized register code in get_register_mut: {:#b} (shifted to lsb?)",
                 code
@@ -20,17 +22,17 @@ fn get_register_mut(m: &mut Memory, code: u8) -> &mut u8 {
     }
 }
 
-fn get_register_val(m: &Memory, code: u8) -> u8 {
+fn get_register_val(mem: &Memory, code: u8) -> u8 {
     unsafe {
         match code {
-            0b00000111 => m.r.a,
-            0 => m.r.bc.ind.0,
-            0b00000001 => m.r.bc.ind.1,
-            0b00000010 => m.r.de.ind.0,
-            0b00000011 => m.r.de.ind.1,
-            0b00000100 => m.r.hl.ind.0,
-            0b00000101 => m.r.hl.ind.1,
-            0b00000110 => m.read_8(m.r.hl.comb),
+            0b00000111 => mem.r.a,
+            0 => mem.r.bc.ind.0,
+            0b00000001 => mem.r.bc.ind.1,
+            0b00000010 => mem.r.de.ind.0,
+            0b00000011 => mem.r.de.ind.1,
+            0b00000100 => mem.r.hl.ind.0,
+            0b00000101 => mem.r.hl.ind.1,
+            0b00000110 => mem.read_8(mem.r.hl.comb),
             _ => panic!(
                 "Unrecognized register code in get_register_val: {:#b} (shifted to lsb?)",
                 code
@@ -39,49 +41,289 @@ fn get_register_val(m: &Memory, code: u8) -> u8 {
     }
 }
 
-pub fn process_instruction(m: &mut Memory) {
+fn u8s_to_u16(h: u8, l: u8) -> u16 {
+    ((h as u16) << 8) | l as u16
+}
+
+fn u16_to_u8s(d: u16) -> (u8, u8) {
+    ((d >> 8) as u8, d as u8)
+}
+
+#[bitmatch]
+pub fn process_instruction(mem: &mut Memory) {
     let mut cycles = 0;
-    let current_instruction = m.read_8(m.r.pc);
-    m.r.pc += 1;
-    let msb_2 = current_instruction & 0b11000000;
-    let middle_3 = (current_instruction & 0b00111000) >> 3;
-    let lsb_3 = current_instruction & 0b00000111;
+    let current_instruction = mem.read_8(mem.r.pc);
+    mem.r.pc += 1;
 
     /*
-        https://docs.rs/bitmatch/latest/bitmatch/
-        https://users.rust-lang.org/t/why-is-a-lookup-table-faster-than-a-match-expression/24233
-        https://archive.org/details/GameBoyProgManVer1.1/page/n95/mode/2up?view=theater
-     */
-    if msb_2 == 0 {
-        if lsb_3 == 0b00000110 {
-            // LD immediate
-            let from_val = m.read_8(m.r.pc);
-            m.r.pc += 1;
-            let to = get_register_mut(m, middle_3);
-            *to = from_val;
+       https://users.rust-lang.org/t/why-is-a-lookup-table-faster-than-a-match-expression/24233
+       https://archive.org/details/GameBoyProgManVer1.1/page/n99/mode/2up?view=theater
+    */
+    #[bitmatch]
+    match current_instruction {
+        "00mmm110" => {
+            // LD r n
+            *get_register_mut(mem, m) = mem.read_8(mem.r.pc);
+            mem.r.pc += 1;
             cycles += 1;
-            if middle_3 == 0b00000110 {
+            if m == 0b00000110 {
                 cycles += 1;
             }
         }
-    } else if msb_2 == 0b10000000 {
-        if middle_3 == 0 {
-            m.r.a = add_8(m.r.a, get_register_val(m, lsb_3), m);
+        "00_001_010" => {
+            // LD A (BC)
+            unsafe {
+                mem.r.a = mem.read_8(mem.r.bc.comb);
+            }
+            cycles += 1;
         }
-    } else if msb_2 == 0b01000000 {
-        if middle_3 == 0b00000110 && lsb_3 == 0b00000110 {
+        "00_011_010" => {
+            // LD A (DE)
+            unsafe {
+                mem.r.a = mem.read_8(mem.r.de.comb);
+            }
+            cycles += 1;
+        }
+        "00_101_010" => {
+            // LD A (HLI)
+            unsafe {
+                mem.r.a = mem.read_8(mem.r.hl.comb);
+                mem.r.hl.comb += 1;
+            }
+            cycles += 1;
+        }
+        "00_111_010" => {
+            // LD A (HLD)
+            unsafe {
+                mem.r.a = mem.read_8(mem.r.hl.comb);
+                mem.r.hl.comb -= 1;
+            }
+            cycles += 1;
+        }
+        "00_000_010" => {
+            // LD (BC) A
+            unsafe {
+                *mem.mut_8(mem.r.bc.comb) = mem.r.a;
+            }
+            cycles += 1;
+        }
+        "00_010_010" => {
+            // LD (DE) A
+            unsafe {
+                *mem.mut_8(mem.r.de.comb) = mem.r.a;
+            }
+            cycles += 1;
+        }
+        "00_100_010" => {
+            // LD (HLI) A
+            unsafe {
+                *mem.mut_8(mem.r.hl.comb) = mem.r.a;
+                mem.r.hl.comb += 1;
+            }
+            cycles += 1;
+        }
+        "00_110_010" => {
+            // LD (HLD) A
+            unsafe {
+                *mem.mut_8(mem.r.hl.comb) = mem.r.a;
+                mem.r.hl.comb -= 1;
+            }
+            cycles += 1;
+        }
+        "00_dd0_001" => {
+            // LD dd nn
+            let val = u8s_to_u16(mem.read_8(mem.r.pc + 1), mem.read_8(mem.r.pc));
+            let to = unsafe {
+                match d {
+                    0 => &mut mem.r.bc.comb,
+                    0b00000001 => &mut mem.r.de.comb,
+                    0b00000010 => &mut mem.r.hl.comb,
+                    0b00000011 => &mut mem.r.sp,
+                    _ => panic!("Unknown load code in LD dd nn: {:#b}", d),
+                }
+            };
+            *to = val;
+            cycles += 2;
+        },
+        "00_001_000" => {
+            // LD (nn), SP
+            let vals = u16_to_u8s(mem.r.sp);
+            cycles += 4;
+        },
+        "01_110_110" => {
             // HALT
             todo!();
-        } else {
-            // LD
-            let from_val = get_register_val(m, lsb_3);
-            let to = get_register_mut(m, middle_3);
+        },
+        "01mmmlll" => {
+            // LD r r'
+            let from_val = get_register_val(mem, l);
+            let to = get_register_mut(mem, m);
             *to = from_val;
-            if middle_3 == 0b00000110 || lsb_3 == 0b00000110 {
+            if m == 0b00000110 || l == 0b00000110 {
                 cycles += 1;
             }
         }
+        "10_000lll" => {
+            // ADD r r'
+            mem.r.a = add_8(mem.r.a, get_register_val(mem, l), mem);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "11_110_010" => {
+            // LD A (C)
+            unsafe {
+                mem.r.a = mem.read_8(0xFF00 + mem.r.bc.ind.1 as u16);
+            }
+            cycles += 1;
+        }
+        "11_100_010" => {
+            // LD (C) A
+            unsafe {
+                *mem.mut_8(0xFF00 + mem.r.bc.ind.1 as u16) = mem.r.a;
+            }
+            cycles += 1;
+        }
+        "11_110_000" => {
+            // LD A (FF00 + n)
+            mem.r.a = mem.read_8(0xFF00 + mem.r.pc);
+            mem.r.pc += 1;
+            cycles += 2;
+        }
+        "11_100_000" => {
+            // LD A (FF00 + n)
+            *mem.mut_8(0xFF00 + mem.r.pc) = mem.r.a;
+            mem.r.pc += 1;
+            cycles += 2;
+        }
+        "11_111_010" => {
+            // LD A nn
+            // TODO: check order of hi and lo
+            let addr = u8s_to_u16(mem.read_8(mem.r.pc), mem.read_8(mem.r.pc + 1));
+            mem.r.a = mem.read_8(addr);
+            mem.r.pc += 2;
+            cycles += 3;
+        }
+        "11_101_010" => {
+            // LD nn A
+            let addr = u8s_to_u16(mem.read_8(mem.r.pc), mem.read_8(mem.r.pc + 1));
+            *mem.mut_8(addr) = mem.r.a;
+            mem.r.pc += 2;
+            cycles += 3;
+        }
+        "11_111_001" => {
+            // LD SP HL
+            unsafe {
+                mem.r.sp = mem.r.hl.comb;
+            }
+            cycles += 1;
+        },
+        "11_qq0_101" => {
+            // PUSH qq
+            let vals = unsafe {
+                match q {
+                    0 => mem.r.bc.ind,
+                    0b00000001 => mem.r.de.ind,
+                    0b00000010 => mem.r.hl.ind,
+                    0b00000011 => (mem.r.a, mem.r.f.bits()),
+                    _ => panic!("Unknown register code in PUSH: {}", q)
+                }
+            };
+            mem.write_8(mem.r.sp - 1, vals.0);
+            mem.write_8(mem.r.sp - 2, vals.1);
+            mem.r.sp -= 2;
+            cycles += 3;
+        },
+        "11_qq0_001" => {
+            // POP qq
+            let vals = (mem.read_8(mem.r.sp + 1), mem.read_8(mem.r.sp));
+            if q == 0b00000011 {
+                mem.r.a = vals.0;
+                mem.r.set_flags_unchecked(vals.1);
+            } else {
+                let ptrs = unsafe {
+                    match q {
+                        0 => &mut mem.r.bc.ind,
+                        0b00000001 => &mut mem.r.de.ind,
+                        0b00000010 => &mut mem.r.hl.ind,
+                        _ => panic!("Unknown register code in POP: {}", q)
+                    }
+                };
+                *ptrs = vals;
+            }
+            mem.r.sp += 2;
+            cycles += 2;
+        },
+        "11_111_000" => {
+            // LDHL SP, e
+            let e = mem.read_8(mem.r.pc) as i8;
+            mem.r.pc += 1;
+            mem.r.hl.comb = add_16_mixed(mem.r.sp, e, mem);
+            cycles += 2;
+        },
+        _ => todo!(),
     }
 
     cycles += 1;
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::memory::Memory;
+
+    use super::process_instruction;
+
+    #[test]
+    fn push_pop_same_val() {
+        let mut m = Memory::default();
+        let initial_bc = 0xDEAD;
+
+        m.r.bc.comb = initial_bc;
+        m.r.pc = 0x8000;
+        m.r.sp = 0x9000;
+        // PUSH bc
+        m.write_8(0x8000, 0b11000101);
+        // POP bc
+        m.write_8(0x8001, 0b11000001);
+        process_instruction(&mut m);
+        m.r.bc.comb = 0;
+        process_instruction(&mut m);
+        unsafe {
+            assert_eq!(m.r.bc.comb, initial_bc, "PUSHing and then POPing changes the pushed value");
+        }
+    }
+
+    #[test]
+    fn pop_register_order() {
+        let mut m = Memory::default();
+
+        m.r.sp = 0xFFFC;
+        m.write_8(0xFFFC, 0x5F);
+        m.write_8(0xFFFD, 0x3C);
+
+        m.r.pc = 0x8000;
+        m.write_8(0x8000, 0b11_000_001);
+        process_instruction(&mut m);
+
+        unsafe {
+            assert_eq!(m.r.bc.ind.0, 0x3C);
+            assert_eq!(m.r.bc.ind.1, 0x5F);
+        }
+    }
+
+    #[test]
+    fn ld_16_byte_register_contents() {
+        let mut m = Memory::default();
+        m.r.pc = 0x8000;
+        m.write_8(0x8000, 0b00_100_001);
+        // Gameboy is little-endian, so least significant byte comes first
+        m.write_8(0x8001, 0x5B);
+        m.write_8(0x8002, 0x3A);
+        process_instruction(&mut m);
+        unsafe {
+            assert_eq!(m.r.hl.comb, 0x3A5B);
+            assert_eq!(m.r.hl.ind.0, 0x3A);
+            assert_eq!(m.r.hl.ind.1, 0x5B);
+        }
+    }
 }
