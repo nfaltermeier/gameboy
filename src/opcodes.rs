@@ -53,7 +53,7 @@ pub fn process_instruction(mem: &mut Memory) {
 
     /*
        https://users.rust-lang.org/t/why-is-a-lookup-table-faster-than-a-match-expression/24233
-       https://archive.org/details/GameBoyProgManVer1.1/page/n99/mode/2up?view=theater
+       https://archive.org/details/GameBoyProgManVer1.1/page/n101/mode/2up?view=theater
     */
     #[bitmatch]
     match current_instruction {
@@ -126,13 +126,18 @@ pub fn process_instruction(mem: &mut Memory) {
                 0b00000011 => mem.r.sp = val,
                 _ => panic!("Unknown load code in LD dd nn: {:#b}", d),
             };
+            mem.r.pc += 2;
             cycles += 2;
         }
         "00_001_000" => {
             // LD (nn), SP
             let vals = u16_to_u8s(mem.r.sp);
+            let addr = u8s_to_u16(mem.read_8(mem.r.pc + 1), mem.read_8(mem.r.pc));
+            mem.write_8(addr, vals.0);
+            mem.write_8(addr + 1, vals.1);
+            mem.r.pc += 2;
             cycles += 4;
-            unimplemented!();
+            todo!("Check if this actually works properly")
         }
         "01_110_110" => {
             // HALT
@@ -148,8 +153,8 @@ pub fn process_instruction(mem: &mut Memory) {
             }
         }
         "10_000lll" => {
-            // ADD r r'
-            mem.r.a = add_8(mem.r.a, get_register_val(mem, l), mem);
+            // ADD A, r and ADD A, n and ADD A, (HL)
+            mem.r.a = add_8(mem.r.a, get_register_val(mem, l), mem, false);
             if l == 0b00000110 {
                 cycles += 1;
             }
