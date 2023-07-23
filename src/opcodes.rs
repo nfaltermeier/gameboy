@@ -53,10 +53,17 @@ pub fn process_instruction(mem: &mut Memory) {
 
     /*
        https://users.rust-lang.org/t/why-is-a-lookup-table-faster-than-a-match-expression/24233
-       https://archive.org/details/GameBoyProgManVer1.1/page/n101/mode/2up?view=theater
+       https://archive.org/details/GameBoyProgManVer1.1/page/n105/mode/2up?view=theater
     */
     #[bitmatch]
     match current_instruction {
+        "00_lll_100" => {
+            // INC r
+            let to = get_register_mut(mem, l);
+            mem.r.a = mem.read_8(mem.r.bc.r16());
+            cycles += 1;
+            todo!("finish implementing")
+        }
         "00mmm110" => {
             // LD r n
             *get_register_mut(mem, m) = mem.read_8(mem.r.pc);
@@ -153,11 +160,116 @@ pub fn process_instruction(mem: &mut Memory) {
             }
         }
         "10_000lll" => {
-            // ADD A, r and ADD A, n and ADD A, (HL)
+            // ADD A, r and ADD A, (HL)
             mem.r.a = add_8(mem.r.a, get_register_val(mem, l), mem, false);
             if l == 0b00000110 {
                 cycles += 1;
             }
+        }
+        "10_001_lll" => {
+            // ADC A, r and ADC A, (HL)
+            mem.r.a = add_8(mem.r.a, get_register_val(mem, l), mem, true);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "10_010_lll" => {
+            // SUB A, r and SUB A, (HL)
+            mem.r.a = sub_8(mem.r.a, get_register_val(mem, l), mem, false);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "10_011_lll" => {
+            // SBC A, r and SBC A, (HL)
+            mem.r.a = sub_8(mem.r.a, get_register_val(mem, l), mem, true);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "10_100_lll" => {
+            // AND A, r and AND A, (HL)
+            mem.r.a = and_8(mem.r.a, get_register_val(mem, l), mem);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "10_101_lll" => {
+            // XOR A, r and XOR A, (HL)
+            mem.r.a = xor_8(mem.r.a, get_register_val(mem, l), mem);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "10_110_lll" => {
+            // OR A, r and OR A, (HL)
+            mem.r.a = or_8(mem.r.a, get_register_val(mem, l), mem);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "10_111_lll" => {
+            // CP A, r and CP A, (HL)
+            cp_8(mem.r.a, get_register_val(mem, l), mem);
+            if l == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "11_000_110" => {
+            // ADD A, n
+            let n = mem.read_8(mem.r.pc);
+            mem.r.a = add_8(mem.r.a, n, mem, false);
+            mem.r.pc += 1;
+            cycles += 1;
+        }
+        "11_001_110" => {
+            // ADC A, n
+            let n = mem.read_8(mem.r.pc);
+            mem.r.a = add_8(mem.r.a, n, mem, true);
+            mem.r.pc += 1;
+            cycles += 1;
+        }
+        "11_010_110" => {
+            // SUB A, n
+            let n = mem.read_8(mem.r.pc);
+            mem.r.a = sub_8(mem.r.a, n, mem, false);
+            mem.r.pc += 1;
+            cycles += 1;
+        }
+        "11_010_110" => {
+            // SBC A, n
+            let n = mem.read_8(mem.r.pc);
+            mem.r.a = sub_8(mem.r.a, n, mem, true);
+            mem.r.pc += 1;
+            cycles += 1;
+        }
+        "11_010_110" => {
+            // AND A, n
+            let n = mem.read_8(mem.r.pc);
+            mem.r.a = and_8(mem.r.a, n, mem);
+            mem.r.pc += 1;
+            cycles += 1;
+        }
+        "11_101_110" => {
+            // XOR A, n
+            let n = mem.read_8(mem.r.pc);
+            mem.r.a = xor_8(mem.r.a, n, mem);
+            mem.r.pc += 1;
+            cycles += 1;
+        }
+        "11_110_110" => {
+            // OR A, n
+            let n = mem.read_8(mem.r.pc);
+            mem.r.a = or_8(mem.r.a, n, mem);
+            mem.r.pc += 1;
+            cycles += 1;
+        }
+        "11_111_110" => {
+            // CP A, n
+            let n = mem.read_8(mem.r.pc);
+            cp_8(mem.r.a, n, mem);
+            mem.r.pc += 1;
+            cycles += 1;
         }
         "11_110_010" => {
             // LD A (C)
