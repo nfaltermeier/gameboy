@@ -37,6 +37,19 @@ fn get_register_val(mem: &Memory, code: u8) -> u8 {
     }
 }
 
+fn get_register_pair_val(mem: &Memory, code: u8) -> u16 {
+    match code {
+        0 => mem.r.bc.r16(),
+        0b00000001 => mem.r.de.r16(),
+        0b00000010 => mem.r.hl.r16(),
+        0b00000011 => mem.r.sp,
+        _ => panic!(
+            "Unrecognized register code in get_register_val: {:#b} (shifted to lsb?)",
+            code
+        ),
+    }
+}
+
 fn u8s_to_u16(h: u8, l: u8) -> u16 {
     ((h as u16) << 8) | l as u16
 }
@@ -53,16 +66,41 @@ pub fn process_instruction(mem: &mut Memory) {
 
     /*
        https://users.rust-lang.org/t/why-is-a-lookup-table-faster-than-a-match-expression/24233
-       https://archive.org/details/GameBoyProgManVer1.1/page/n105/mode/2up?view=theater
+       https://archive.org/details/GameBoyProgManVer1.1/page/n109/mode/2up?view=theater
     */
     #[bitmatch]
     match current_instruction {
+        "00_000_111" => {
+            // RLCA
+            mem.r.a = rlc(mem.r.a, mem, true);
+        }
+        "00_010_111" => {
+            // RLA
+            mem.r.a = rl(mem.r.a, mem, true);
+        }
+        "00_001_111" => {
+            // RRCA
+            mem.r.a = rrc(mem.r.a, mem, true);
+        }
+        "00_011_111" => {
+            // RRA
+            mem.r.a = rr(mem.r.a, mem, true);
+        }
         "00_lll_100" => {
-            // INC r
-            let to = get_register_mut(mem, l);
-            mem.r.a = mem.read_8(mem.r.bc.r16());
-            cycles += 1;
-            todo!("finish implementing")
+            // INC r, INC (HL)
+            let val = inc_8(get_register_val(mem, l), mem);
+            *get_register_mut(mem, l) = val;
+            if l == 0b00000110 {
+                cycles += 2;
+            }
+        }
+        "00_lll_101" => {
+            // DEC r, DEC (HL)
+            let val = dec_8(get_register_val(mem, l), mem);
+            *get_register_mut(mem, l) = val;
+            if l == 0b00000110 {
+                cycles += 2;
+            }
         }
         "00mmm110" => {
             // LD r n
@@ -76,6 +114,22 @@ pub fn process_instruction(mem: &mut Memory) {
         "00_001_010" => {
             // LD A (BC)
             mem.r.a = mem.read_8(mem.r.bc.r16());
+            cycles += 1;
+        }
+        "00_ss1_001" => {
+            // ADD HL, (ss)
+            let val = add_16(mem.r.hl.r16(), get_register_pair_val(mem, s), mem);
+            mem.r.hl.s16(val);
+            cycles += 1;
+        }
+        "00_ss0_011" => {
+            // INC ss
+            mem.r.hl.s16(inc_16(get_register_pair_val(mem, s)));
+            cycles += 1;
+        }
+        "00_ss1_011" => {
+            // DEC ss
+            mem.r.hl.s16(dec_16(get_register_pair_val(mem, s)));
             cycles += 1;
         }
         "00_011_010" => {
@@ -222,6 +276,19 @@ pub fn process_instruction(mem: &mut Memory) {
             mem.r.pc += 1;
             cycles += 1;
         }
+        "11_001_011" => {
+            // CB prefix
+            let next_instruction = mem.read_8(mem.r.pc);
+            mem.r.pc += 1;
+
+            #[bitmatch]
+            match next_instruction {
+                "00_000_rrr" => {
+                    // RLC r, RLC (HL)
+                }
+                _ => todo!(),
+            }
+        }
         "11_001_110" => {
             // ADC A, n
             let n = mem.read_8(mem.r.pc);
@@ -249,6 +316,13 @@ pub fn process_instruction(mem: &mut Memory) {
             mem.r.a = and_8(mem.r.a, n, mem);
             mem.r.pc += 1;
             cycles += 1;
+        }
+        "11_101_000" => {
+            // ADD SP, e
+            let e = mem.read_8(mem.r.pc);
+            add_sp_e(e, mem);
+            mem.r.pc += 1;
+            cycles += 3;
         }
         "11_101_110" => {
             // XOR A, n

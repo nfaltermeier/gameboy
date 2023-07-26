@@ -19,6 +19,20 @@ pub fn add_8(a: u8, mut b: u8, m: &mut Memory, carry: bool) -> u8 {
     result
 }
 
+pub fn add_16(a: u16, b: u16, m: &mut Memory) -> u16 {
+    let al = a & 0x0FFF;
+    let bl = b & 0x0FFF;
+
+    let (result, overflow) = a.overflowing_add(b);
+
+    m.r.f.set(RegisterFlags::Z, result == 0);
+    m.r.f.set(RegisterFlags::H, (al + bl) > 0x0FFF);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, overflow);
+
+    result
+}
+
 pub fn add_16_mixed(a: u16, b: i8, m: &mut Memory) -> u16 {
     let result: u16;
     let overflow: bool;
@@ -111,14 +125,15 @@ pub fn inc_8(a: u8, m: &mut Memory) -> u8 {
 
     result
 }
-pub fn inc_82(a: &mut u8, m: &mut Memory) {
-    let al = *a & 0x0F;
 
-    *a = a.wrapping_add(1);
+pub fn inc_16(a: u16) -> u16 {
+    // todo: wrapping behavior?
+    a.wrapping_add(1)
+}
 
-    m.r.f.set(RegisterFlags::Z, *a == 0);
-    m.r.f.set(RegisterFlags::H, (al + 1) > 0x0F);
-    m.r.f.set(RegisterFlags::N, false);
+pub fn dec_16(a: u16) -> u16 {
+    // todo: wrapping behavior?
+    a.wrapping_sub(1)
 }
 
 pub fn dec_8(a: u8, m: &mut Memory) -> u8 {
@@ -127,6 +142,67 @@ pub fn dec_8(a: u8, m: &mut Memory) -> u8 {
     m.r.f.set(RegisterFlags::Z, result == 0);
     m.r.f.set(RegisterFlags::H, a == 0);
     m.r.f.set(RegisterFlags::N, false);
+
+    result
+}
+
+pub fn add_sp_e(e: u8, m: &mut Memory) {
+    m.r.sp = m.r.sp.wrapping_add(e.into());
+
+    m.r.f.set(RegisterFlags::Z, false);
+    m.r.f.set(RegisterFlags::N, false);
+}
+
+pub fn rlc(a: u8, m: &mut Memory, a_instruction: bool) -> u8 {
+    if !a_instruction {
+        m.r.f.set(RegisterFlags::Z, false);
+    }
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, (a & 0x80) != 0);
+
+    a.rotate_left(1)
+}
+
+pub fn rrc(a: u8, m: &mut Memory, a_instruction: bool) -> u8 {
+    if !a_instruction {
+        m.r.f.set(RegisterFlags::Z, false);
+    }
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, (a & 0) != 0);
+
+    a.rotate_right(1)
+}
+
+pub fn rl(a: u8, m: &mut Memory, a_instruction: bool) -> u8 {
+    let mut result = a << 1;
+    if m.r.f.intersects(RegisterFlags::CY) {
+        result |= 1;
+    }
+
+    if !a_instruction {
+        m.r.f.set(RegisterFlags::Z, false);
+    }
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, (a & 0x80) != 0);
+
+    result
+}
+
+pub fn rr(a: u8, m: &mut Memory, a_instruction: bool) -> u8 {
+    let mut result = a >> 1;
+    if m.r.f.intersects(RegisterFlags::CY) {
+        result |= 0x80;
+    }
+
+    if !a_instruction {
+        m.r.f.set(RegisterFlags::Z, false);
+    }
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, (a & 0) != 0);
 
     result
 }
