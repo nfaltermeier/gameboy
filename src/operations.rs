@@ -1,4 +1,4 @@
-use crate::memory::{Memory, RegisterFlags};
+use crate::{memory::{Memory, RegisterFlags}, opcodes::{u16_to_u8s, u8s_to_u16}};
 
 pub fn add_8(a: u8, mut b: u8, m: &mut Memory, carry: bool) -> u8 {
     let al = a & 0x0F;
@@ -154,6 +154,7 @@ pub fn add_sp_e(e: u8, m: &mut Memory) {
 }
 
 pub fn rlc(a: u8, m: &mut Memory, a_instruction: bool) -> u8 {
+    todo!("Verify a_instruction behavior");
     if !a_instruction {
         m.r.f.set(RegisterFlags::Z, false);
     }
@@ -205,4 +206,95 @@ pub fn rr(a: u8, m: &mut Memory, a_instruction: bool) -> u8 {
     m.r.f.set(RegisterFlags::CY, (a & 0) != 0);
 
     result
+}
+
+pub fn sla(a: u8, m: &mut Memory) -> u8 {
+    let result = a << 1;
+    
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, (a & 0b10000000) != 0);
+    m.r.f.set(RegisterFlags::Z, result == 0);
+
+    result
+}
+
+pub fn sra(a: u8, m: &mut Memory) -> u8 {
+    // Cast as i8 to use arithmetic shift instead of logical shift
+    let result = a as i8 >> 1;
+    
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, (a & 0b00000001) != 0);
+    m.r.f.set(RegisterFlags::Z, result == 0);
+
+    result as u8
+}
+
+pub fn srl(a: u8, m: &mut Memory) -> u8 {
+    let result = a >> 1;
+    
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, (a & 0b00000001) != 0);
+    m.r.f.set(RegisterFlags::Z, result == 0);
+
+    result
+}
+
+pub fn swap(a: u8, m: &mut Memory) -> u8 {
+    let lower = a & 0x0F;
+    let upper = a & 0xF0;
+    let result = (lower << 4) + (upper >> 4);
+    
+    m.r.f.set(RegisterFlags::H, false);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::CY, false);
+    m.r.f.set(RegisterFlags::Z, result == 0);
+
+    result
+}
+
+// swap order of parameters to match notation?
+pub fn bit(a: u8, b: u8, m: &mut Memory) {
+    let target_bit = a & (1 << b);
+    
+    m.r.f.set(RegisterFlags::H, true);
+    m.r.f.set(RegisterFlags::N, false);
+    m.r.f.set(RegisterFlags::Z, target_bit == 0);
+}
+
+// swap order of parameters to match notation?
+pub fn set(a: u8, b: u8) -> u8 {
+    todo!("Check if the 0 behavior was a mistake in the programming manual");
+    if b == 0 {
+        a
+    } else {
+        a | (1 << b - 1)
+    }
+}
+
+// swap order of parameters to match notation?
+pub fn res(a: u8, b: u8) -> u8 {
+    a & !(1 << b)
+}
+
+pub fn call(mem: &mut Memory) {
+    let vals = u16_to_u8s(mem.r.pc + 2);
+    mem.write_8(mem.r.sp - 1, vals.0);
+    mem.write_8(mem.r.sp - 2, vals.1);
+    mem.r.sp -= 2;
+
+    let addr = u8s_to_u16(mem.read_8(mem.r.pc + 1), mem.read_8(mem.r.pc));
+    mem.r.pc = addr;
+
+    todo!("Check if CALL actually works properly");
+}
+
+pub fn ret(mem: &mut Memory) {
+    let addr = u8s_to_u16(mem.read_8(mem.r.sp + 1), mem.read_8(mem.r.sp));
+    mem.r.pc = addr;
+    mem.r.sp += 2;
+
+    todo!("Check if RET actually works properly");
 }

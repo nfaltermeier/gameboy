@@ -1,6 +1,6 @@
 use bitmatch::bitmatch;
 
-use crate::memory::Memory;
+use crate::memory::{Memory, RegisterFlags};
 use crate::operations::*;
 
 fn get_register_mut(mem: &mut Memory, code: u8) -> &mut u8 {
@@ -50,12 +50,19 @@ fn get_register_pair_val(mem: &Memory, code: u8) -> u16 {
     }
 }
 
-fn u8s_to_u16(h: u8, l: u8) -> u16 {
+pub fn u8s_to_u16(h: u8, l: u8) -> u16 {
     ((h as u16) << 8) | l as u16
 }
 
-fn u16_to_u8s(d: u16) -> (u8, u8) {
+pub fn u16_to_u8s(d: u16) -> (u8, u8) {
     ((d >> 8) as u8, d as u8)
+}
+
+fn check_jump_condition(cc: u8, mem: &Memory) -> bool {
+    (cc == 0 && !mem.r.f.contains(RegisterFlags::Z))
+        || (cc == 0b00000001 && mem.r.f.contains(RegisterFlags::Z))
+        || (cc == 0b00000010 && !mem.r.f.contains(RegisterFlags::CY))
+        || (cc == 0b00000011 && mem.r.f.contains(RegisterFlags::CY))
 }
 
 #[bitmatch]
@@ -66,7 +73,7 @@ pub fn process_instruction(mem: &mut Memory) {
 
     /*
        https://users.rust-lang.org/t/why-is-a-lookup-table-faster-than-a-match-expression/24233
-       https://archive.org/details/GameBoyProgManVer1.1/page/n109/mode/2up?view=theater
+       https://archive.org/details/GameBoyProgManVer1.1/page/n119/mode/2up?view=theater
     */
     #[bitmatch]
     match current_instruction {
@@ -131,6 +138,37 @@ pub fn process_instruction(mem: &mut Memory) {
             // DEC ss
             mem.r.hl.s16(dec_16(get_register_pair_val(mem, s)));
             cycles += 1;
+        }
+        "00_011_000" => {
+            // JR e
+            let e = mem.read_8(mem.r.pc) as i8;
+            let result = mem.r.pc.checked_add_signed(e.into());
+            match result {
+                None => panic!("JR over/underflowed, not sure how this should behave"),
+                Some(v) => {
+                    mem.r.pc = v + 1;
+                }
+            }
+            cycles += 2;
+            todo!("Check if this actually works properly")
+        }
+        "00_0cc_000" => {
+            // JR cc, e
+            if check_jump_condition(c, mem) {
+                let e = mem.read_8(mem.r.pc) as i8;
+                let result = mem.r.pc.checked_add_signed(e.into());
+                match result {
+                    None => panic!("JR over/underflowed, not sure how this should behave"),
+                    Some(v) => {
+                        mem.r.pc = v + 1;
+                    }
+                }
+                cycles += 2;
+                todo!("Check if this actually works properly")
+            } else {
+                mem.r.pc += 1;
+                cycles += 1;
+            }
         }
         "00_011_010" => {
             // LD A (DE)
@@ -269,6 +307,25 @@ pub fn process_instruction(mem: &mut Memory) {
                 cycles += 1;
             }
         }
+        "11_000_011" => {
+            // JP nn
+            let addr = u8s_to_u16(mem.read_8(mem.r.pc + 1), mem.read_8(mem.r.pc));
+            mem.r.pc = addr;
+            cycles += 3;
+            todo!("Check if this actually works properly")
+        }
+        "11_0cc_010" => {
+            // JP cc, nn
+            if check_jump_condition(c, mem) {
+                let addr = u8s_to_u16(mem.read_8(mem.r.pc + 1), mem.read_8(mem.r.pc));
+                mem.r.pc = addr;
+                cycles += 3;
+                todo!("Check if this actually works properly")
+            } else {
+                mem.r.pc += 2;
+                cycles += 2;
+            }
+        }
         "11_000_110" => {
             // ADD A, n
             let n = mem.read_8(mem.r.pc);
@@ -276,18 +333,127 @@ pub fn process_instruction(mem: &mut Memory) {
             mem.r.pc += 1;
             cycles += 1;
         }
+        "11_001_001" => {
+            // RET
+            ret(mem);
+            cycles += 3;
+        }
         "11_001_011" => {
             // CB prefix
             let next_instruction = mem.read_8(mem.r.pc);
             mem.r.pc += 1;
+            // all CB instructions take at least 2 cycles
+            cycles += 1;
 
             #[bitmatch]
             match next_instruction {
                 "00_000_rrr" => {
                     // RLC r, RLC (HL)
+                    let result = rlc(get_register_val(mem, r), mem, true);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "00_001_rrr" => {
+                    // RRC r, RRC (HL)
+                    let result = rrc(get_register_val(mem, r), mem, true);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "00_010_rrr" => {
+                    // RL r, RL (HL)
+                    let result = rl(get_register_val(mem, r), mem, true);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "00_011_rrr" => {
+                    // RR r, RR (HL)
+                    let result = rr(get_register_val(mem, r), mem, true);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "00_100_rrr" => {
+                    // SLA r, SLA (HL)
+                    let result = sla(get_register_val(mem, r), mem);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "00_101_rrr" => {
+                    // SRA r, SRA (HL)
+                    let result = sra(get_register_val(mem, r), mem);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "00_110_rrr" => {
+                    // SWAP r, SWAP (HL)
+                    let result = swap(get_register_val(mem, r), mem);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "00_111_rrr" => {
+                    // SRL r, SRL (HL)
+                    let result = srl(get_register_val(mem, r), mem);
+                    *get_register_mut(mem, r) = result;
+
+                    if r == 0b00000110 {
+                        cycles += 2;
+                    }
+                }
+                "01_bbb_rrr" => {
+                    // BIT b, r, BIT b, (HL)
+                    bit(get_register_val(mem, r), b, mem);
+
+                    if r == 0b00000110 {
+                        cycles += 1;
+                    }
+                }
+                "10_bbb_rrr" => {
+                    // RES b, r, RES b, (HL)
+                    let result = res(get_register_val(mem, r), b);
+                    *get_register_mut(mem, r) = result;
+                    
+
+                    if r == 0b00000110 {
+                        cycles += 1;
+                    }
+                }
+                "11_bbb_rrr" => {
+                    // SET b, r, SET b, (HL)
+                    let result = set(get_register_val(mem, r), b);
+                    *get_register_mut(mem, r) = result;
+                    
+
+                    if r == 0b00000110 {
+                        cycles += 1;
+                    }
                 }
                 _ => todo!(),
             }
+        }
+        "11_001_101" => {
+            // CALL nn
+            call(mem);
+            cycles += 5;
         }
         "11_001_110" => {
             // ADC A, n
@@ -317,12 +483,34 @@ pub fn process_instruction(mem: &mut Memory) {
             mem.r.pc += 1;
             cycles += 1;
         }
+        "11_011_001" => {
+            // RETI
+            ret(mem);
+            todo!("Set master interrupt enable flag");
+            cycles += 3;
+        }
+        "11_0cc_100" => {
+            // CALL cc, nn
+            if check_jump_condition(c, mem) {
+                call(mem);
+                cycles += 5;
+            } else {
+                cycles += 2;
+                mem.r.pc += 2;
+            }
+        }
         "11_101_000" => {
             // ADD SP, e
             let e = mem.read_8(mem.r.pc);
             add_sp_e(e, mem);
             mem.r.pc += 1;
             cycles += 3;
+        }
+        "11_101_01" => {
+            // JP HL
+            let addr = mem.r.hl.r16();
+            mem.r.pc = addr;
+            todo!("Check if this actually works properly")
         }
         "11_101_110" => {
             // XOR A, n
