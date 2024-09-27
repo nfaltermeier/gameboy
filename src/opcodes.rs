@@ -708,7 +708,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::memory::{BasicMemory, MemoryController};
+    use crate::{memory::MemoryController, memory_controllers::basic_memory::BasicMemory};
 
     use super::process_instruction;
 

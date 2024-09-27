@@ -1,0 +1,3 @@
+pub const ADDRESS_FIRST_INTERRUPT_HANDLER: u16 = 0x40;
+pub const ADDRESS_IF: u16 = 0xFF0F;
+pub const ADDRESS_IE: u16 = 0xFFFF;

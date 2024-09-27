@@ -87,49 +87,6 @@ pub trait MemoryController {
     fn ime(&mut self) -> &mut bool;
 }
 
-#[repr(C)]
-pub struct BasicMemory {
-    pub r: Registers,
-    mem: [u8; 0x10000],
-    pub ime: bool,
-}
-
-impl MemoryController for BasicMemory {
-    fn read_8(&self, addr: u16) -> u8 {
-        self.mem[addr as usize]
-    }
-
-    fn write_8(&mut self, addr: u16, val: u8) {
-        self.mem[addr as usize] = val;
-    }
-
-    fn mut_8(&mut self, addr: u16) -> &mut u8 {
-        &mut self.mem[addr as usize]
-    }
-
-    fn r(&mut self) -> &mut Registers {
-        &mut self.r
-    }
-
-    fn r_i(&self) -> &Registers {
-        &self.r
-    }
-
-    fn ime(&mut self) -> &mut bool {
-        &mut self.ime
-    }
-}
-
-impl Default for BasicMemory {
-    fn default() -> Self {
-        Self {
-            r: Default::default(),
-            mem: [0; 0x10000],
-            ime: false,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::RegisterPair;

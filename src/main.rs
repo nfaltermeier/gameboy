@@ -1,13 +1,16 @@
 extern crate bitflags;
 extern crate bitmatch;
 
+mod constants;
 mod memory;
+mod memory_controllers;
 mod opcodes;
 mod operations;
+mod system;
 
-use memory::{BasicMemory, MemoryController};
-
-use crate::opcodes::process_instruction;
+use memory::MemoryController;
+use memory_controllers::basic_memory::BasicMemory;
+use opcodes::process_instruction;
 
 fn main() {
     /*
