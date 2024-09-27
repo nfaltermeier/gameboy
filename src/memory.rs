@@ -77,28 +77,50 @@ impl Registers {
     }
 }
 
+pub trait MemoryController {
+    fn read_8(&self, addr: u16) -> u8;
+    fn write_8(&mut self, addr: u16, val: u8);
+    // remove?
+    fn mut_8(&mut self, addr: u16) -> &mut u8;
+    fn r(&mut self) -> &mut Registers;
+    fn r_i(&self) -> &Registers;
+    fn ime(&mut self) -> &mut bool;
+}
+
 #[repr(C)]
-pub struct Memory {
+pub struct BasicMemory {
     pub r: Registers,
     mem: [u8; 0x10000],
     pub ime: bool,
 }
 
-impl Memory {
-    pub fn read_8(&self, addr: u16) -> u8 {
+impl MemoryController for BasicMemory {
+    fn read_8(&self, addr: u16) -> u8 {
         self.mem[addr as usize]
     }
 
-    pub fn write_8(&mut self, addr: u16, val: u8) {
+    fn write_8(&mut self, addr: u16, val: u8) {
         self.mem[addr as usize] = val;
     }
 
-    pub fn mut_8(&mut self, addr: u16) -> &mut u8 {
+    fn mut_8(&mut self, addr: u16) -> &mut u8 {
         &mut self.mem[addr as usize]
+    }
+
+    fn r(&mut self) -> &mut Registers {
+        &mut self.r
+    }
+
+    fn r_i(&self) -> &Registers {
+        &self.r
+    }
+
+    fn ime(&mut self) -> &mut bool {
+        &mut self.ime
     }
 }
 
-impl Default for Memory {
+impl Default for BasicMemory {
     fn default() -> Self {
         Self {
             r: Default::default(),

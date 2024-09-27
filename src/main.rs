@@ -5,16 +5,18 @@ mod memory;
 mod opcodes;
 mod operations;
 
-use memory::Memory;
+use memory::{BasicMemory, MemoryController};
 
 use crate::opcodes::process_instruction;
 
 fn main() {
     /*
+     * https://archive.org/details/GameBoyProgManVer1.1/page/n7/mode/2up?view=theater
      * general todo:
      * system registers pg 17, initial values pg 23, pg 268
      * interrupts see page 24
      * finish and test instructions
+     * MBCs pg 215
      * display pg 48
      * color display for gbc?
      * sound pg 79
@@ -26,7 +28,7 @@ fn main() {
      * persistent saves
      */ 
 
-    let mut m = Memory::default();
+    let mut m = BasicMemory::default();
     m.r.set_flags_unchecked(0xFF);
     println!("result 1: {:#b}", m.r.f.bits());
     println!("result 2: {}", (-1) >> 1);
