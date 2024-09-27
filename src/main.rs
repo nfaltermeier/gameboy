@@ -10,6 +10,22 @@ use memory::Memory;
 use crate::opcodes::process_instruction;
 
 fn main() {
+    /*
+     * general todo:
+     * system registers pg 17, initial values pg 23, pg 268
+     * interrupts see page 24
+     * finish and test instructions
+     * display pg 48
+     * color display for gbc?
+     * sound pg 79
+     * input (including reset switch)
+     * cycle clock .954us or on gbc .477us switchable
+     * read ROM
+     * serial communication?
+     * system startup pg 23, 127
+     * persistent saves
+     */ 
+
     let mut m = Memory::default();
     m.r.set_flags_unchecked(0xFF);
     println!("result 1: {:#b}", m.r.f.bits());

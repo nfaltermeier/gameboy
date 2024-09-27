@@ -66,20 +66,28 @@ fn check_jump_condition(cc: u8, mem: &Memory) -> bool {
 }
 
 #[bitmatch]
-pub fn process_instruction(mem: &mut Memory) {
+pub fn process_instruction(mem: &mut Memory) -> i32 {
     let mut cycles = 0;
     let current_instruction = mem.read_8(mem.r.pc);
     mem.r.pc += 1;
 
     /*
        https://users.rust-lang.org/t/why-is-a-lookup-table-faster-than-a-match-expression/24233
-       https://archive.org/details/GameBoyProgManVer1.1/page/n119/mode/2up?view=theater
+       https://archive.org/details/GameBoyProgManVer1.1/page/n123/mode/2up?view=theater
     */
     #[bitmatch]
     match current_instruction {
+        "00_000_000" => {
+            // NOP
+        }
         "00_000_111" => {
             // RLCA
             mem.r.a = rlc(mem.r.a, mem, true);
+        }
+        "00_001_010" => {
+            // LD A (BC)
+            mem.r.a = mem.read_8(mem.r.bc.r16());
+            cycles += 1;
         }
         "00_010_111" => {
             // RLA
@@ -88,56 +96,6 @@ pub fn process_instruction(mem: &mut Memory) {
         "00_001_111" => {
             // RRCA
             mem.r.a = rrc(mem.r.a, mem, true);
-        }
-        "00_011_111" => {
-            // RRA
-            mem.r.a = rr(mem.r.a, mem, true);
-        }
-        "00_lll_100" => {
-            // INC r, INC (HL)
-            let val = inc_8(get_register_val(mem, l), mem);
-            *get_register_mut(mem, l) = val;
-            if l == 0b00000110 {
-                cycles += 2;
-            }
-        }
-        "00_lll_101" => {
-            // DEC r, DEC (HL)
-            let val = dec_8(get_register_val(mem, l), mem);
-            *get_register_mut(mem, l) = val;
-            if l == 0b00000110 {
-                cycles += 2;
-            }
-        }
-        "00mmm110" => {
-            // LD r n
-            *get_register_mut(mem, m) = mem.read_8(mem.r.pc);
-            mem.r.pc += 1;
-            cycles += 1;
-            if m == 0b00000110 {
-                cycles += 1;
-            }
-        }
-        "00_001_010" => {
-            // LD A (BC)
-            mem.r.a = mem.read_8(mem.r.bc.r16());
-            cycles += 1;
-        }
-        "00_ss1_001" => {
-            // ADD HL, (ss)
-            let val = add_16(mem.r.hl.r16(), get_register_pair_val(mem, s), mem);
-            mem.r.hl.s16(val);
-            cycles += 1;
-        }
-        "00_ss0_011" => {
-            // INC ss
-            mem.r.hl.s16(inc_16(get_register_pair_val(mem, s)));
-            cycles += 1;
-        }
-        "00_ss1_011" => {
-            // DEC ss
-            mem.r.hl.s16(dec_16(get_register_pair_val(mem, s)));
-            cycles += 1;
         }
         "00_011_000" => {
             // JR e
@@ -152,7 +110,49 @@ pub fn process_instruction(mem: &mut Memory) {
             cycles += 2;
             todo!("Check if this actually works properly")
         }
-        "00_0cc_000" => {
+        "00_011_010" => {
+            // LD A (DE)
+            mem.r.a = mem.read_8(mem.r.de.r16());
+            cycles += 1;
+        }
+        "00_011_111" => {
+            // RRA
+            mem.r.a = rr(mem.r.a, mem, true);
+        }
+        "00_100_111" => {
+            // DAA
+            // done according to https://forums.nesdev.org/viewtopic.php?t=15944
+            if !mem.r.f.contains(RegisterFlags::N) {
+                // Addition
+                if mem.r.f.contains(RegisterFlags::CY) || mem.r.a > 0x99 {
+                    mem.r.a += 0x60;
+                    mem.r.f.set(RegisterFlags::CY, true);
+                }
+
+                if mem.r.f.contains(RegisterFlags::H) || (mem.r.a & 0x0F) > 0x09 {
+                    mem.r.a += 0x06;
+                }
+            } else {
+                // Subtraction
+                if mem.r.f.contains(RegisterFlags::CY) {
+                    mem.r.a -= 0x60;
+                }
+
+                if mem.r.f.contains(RegisterFlags::H) {
+                    mem.r.a -= 0x06;
+                }
+            }
+
+            mem.r.f.set(RegisterFlags::Z, mem.r.a == 0);
+            mem.r.f.set(RegisterFlags::H, false);
+        }
+        "00_101_111" => {
+            // CPL
+            mem.r.a = !mem.r.a;
+            mem.r.f.set(RegisterFlags::H, true);
+            mem.r.f.set(RegisterFlags::N, true);
+        }
+        "00_1cc_000" => {
             // JR cc, e
             if check_jump_condition(c, mem) {
                 let e = mem.read_8(mem.r.pc) as i8;
@@ -170,9 +170,45 @@ pub fn process_instruction(mem: &mut Memory) {
                 cycles += 1;
             }
         }
-        "00_011_010" => {
-            // LD A (DE)
-            mem.r.a = mem.read_8(mem.r.de.r16());
+        "00_lll_100" => {
+            // INC r, INC (HL)
+            let val = inc_8(get_register_val(mem, l), mem);
+            *get_register_mut(mem, l) = val;
+            if l == 0b00000110 {
+                cycles += 2;
+            }
+        }
+        "00_lll_101" => {
+            // DEC r, DEC (HL)
+            let val = dec_8(get_register_val(mem, l), mem);
+            *get_register_mut(mem, l) = val;
+            if l == 0b00000110 {
+                cycles += 2;
+            }
+        }
+        "00_mmm_110" => {
+            // LD r n
+            *get_register_mut(mem, m) = mem.read_8(mem.r.pc);
+            mem.r.pc += 1;
+            cycles += 1;
+            if m == 0b00000110 {
+                cycles += 1;
+            }
+        }
+        "00_ss1_001" => {
+            // ADD HL, (ss)
+            let val = add_16(mem.r.hl.r16(), get_register_pair_val(mem, s), mem);
+            mem.r.hl.s16(val);
+            cycles += 1;
+        }
+        "00_ss0_011" => {
+            // INC ss
+            mem.r.hl.s16(inc_16(get_register_pair_val(mem, s)));
+            cycles += 1;
+        }
+        "00_ss1_011" => {
+            // DEC ss
+            mem.r.hl.s16(dec_16(get_register_pair_val(mem, s)));
             cycles += 1;
         }
         "00_101_010" => {
@@ -238,11 +274,29 @@ pub fn process_instruction(mem: &mut Memory) {
             cycles += 4;
             todo!("Check if this actually works properly")
         }
+        "00_010_000" => {
+            // STOP
+            // see page 23
+            todo!("Need to figure out interrupts first before STOP");
+        }
+        "00_110_111" => {
+            // SCF
+            mem.r.f.set(RegisterFlags::CY, true);
+            mem.r.f.set(RegisterFlags::H, false);
+            mem.r.f.set(RegisterFlags::N, false);
+        }
+        "00_111_111" => {
+            // CCF
+            mem.r.f.set(RegisterFlags::CY, !mem.r.f.contains(RegisterFlags::CY));
+            mem.r.f.set(RegisterFlags::H, false);
+            mem.r.f.set(RegisterFlags::N, false);
+        }
         "01_110_110" => {
             // HALT
-            todo!();
+            // see page 23
+            todo!("Need to figure out interrupts first before HALT");
         }
-        "01mmmlll" => {
+        "01_mmm_lll" => {
             // LD r r'
             let from_val = get_register_val(mem, l);
             let to = get_register_mut(mem, m);
@@ -483,10 +537,19 @@ pub fn process_instruction(mem: &mut Memory) {
             mem.r.pc += 1;
             cycles += 1;
         }
+        "11_0cc_000" => {
+            // RET cc
+            if check_jump_condition(c, mem) {
+                ret(mem);
+                cycles += 4;
+            } else {
+                cycles += 1;
+            }
+        }
         "11_011_001" => {
             // RETI
             ret(mem);
-            todo!("Set master interrupt enable flag");
+            todo!("Set master interrupt enable flag to what??");
             cycles += 3;
         }
         "11_0cc_100" => {
@@ -519,12 +582,19 @@ pub fn process_instruction(mem: &mut Memory) {
             mem.r.pc += 1;
             cycles += 1;
         }
+        "11_110_011" => {
+            // DI
+            mem.ime = false;
+        }
         "11_110_110" => {
             // OR A, n
             let n = mem.read_8(mem.r.pc);
             mem.r.a = or_8(mem.r.a, n, mem);
             mem.r.pc += 1;
             cycles += 1;
+        }
+        "11_111_011" => {
+            mem.ime = true;
         }
         "11_111_110" => {
             // CP A, n
@@ -615,10 +685,21 @@ pub fn process_instruction(mem: &mut Memory) {
             mem.r.hl.s16(result);
             cycles += 2;
         }
-        _ => todo!(),
+        "11_ttt_111" => {
+            // RST t
+            let vals = u16_to_u8s(mem.r.pc + 1);
+            mem.write_8(mem.r.sp - 1, vals.0);
+            mem.write_8(mem.r.sp - 2, vals.1);
+            mem.r.sp -= 2;
+
+            mem.r.pc = t as u16 * 0x08;
+        }
+        _ => {
+            panic!("Unrecognized instruction {:#b}", current_instruction);
+        },
     }
 
-    cycles += 1;
+    cycles + 1
 }
 
 #[cfg(test)]

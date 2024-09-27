@@ -81,6 +81,7 @@ impl Registers {
 pub struct Memory {
     pub r: Registers,
     mem: [u8; 0x10000],
+    pub ime: bool,
 }
 
 impl Memory {
@@ -102,6 +103,7 @@ impl Default for Memory {
         Self {
             r: Default::default(),
             mem: [0; 0x10000],
+            ime: false,
         }
     }
 }
