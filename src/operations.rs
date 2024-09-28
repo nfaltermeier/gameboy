@@ -287,8 +287,6 @@ pub fn call(mem: &mut dyn MemoryController) {
 
     let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
     mem.r().pc = addr;
-
-    todo!("Check if CALL actually works properly");
 }
 
 pub fn ret(mem: &mut dyn MemoryController) {

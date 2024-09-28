@@ -51,7 +51,8 @@ fn get_register_pair_val(mem: &dyn MemoryController, code: u8) -> u16 {
 }
 
 pub fn u8s_to_u16(h: u8, l: u8) -> u16 {
-    ((h as u16) << 8) | l as u16
+    let val =  ((h as u16) << 8) | l as u16;
+    val
 }
 
 pub fn u16_to_u8s(d: u16) -> (u8, u8) {
@@ -66,9 +67,11 @@ fn check_jump_condition(cc: u8, mem: &dyn MemoryController) -> bool {
 }
 
 #[bitmatch]
-pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
+pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
     let mut cycles = 0;
+    println!("pc: {:#x}", mem.r_i().pc);
     let current_instruction = mem.read_8(mem.r_i().pc);
+    println!("ins: {:#b}", current_instruction);
     mem.r().pc += 1;
 
     /*
@@ -165,7 +168,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
                     }
                 }
                 cycles += 2;
-                todo!("Check if this actually works properly")
             } else {
                 mem.r().pc += 1;
                 cycles += 1;
@@ -275,7 +277,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
             mem.write_8(addr + 1, vals.1);
             mem.r().pc += 2;
             cycles += 4;
-            todo!("Check if this actually works properly")
         }
         "00_010_000" => {
             // STOP
@@ -370,7 +371,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
             let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
             mem.r().pc = addr;
             cycles += 3;
-            todo!("Check if this actually works properly")
         }
         "11_0cc_010" => {
             // JP cc, nn
@@ -378,7 +378,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
                 let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
                 mem.r().pc = addr;
                 cycles += 3;
-                todo!("Check if this actually works properly")
             } else {
                 mem.r().pc += 2;
                 cycles += 2;
@@ -505,7 +504,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
                         cycles += 1;
                     }
                 }
-                _ => todo!(),
             }
         }
         "11_001_101" => {
@@ -553,7 +551,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
         "11_011_001" => {
             // RETI
             ret(mem);
-            todo!("Set master interrupt enable flag to what??");
+            *mem.ime() = true;
             cycles += 3;
         }
         "11_0cc_100" => {
@@ -577,7 +575,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
             // JP HL
             let addr = mem.r().hl.r16();
             mem.r().pc = addr;
-            todo!("Check if this actually works properly")
+            todo!("JP HL: Check if this actually works properly. addr: {:#x}", addr)
         }
         "11_101_110" => {
             // XOR A, n
@@ -619,23 +617,23 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
         }
         "11_110_000" => {
             // LD A (FF00 + n)
-            mem.r().a = mem.read_8(0xFF00 + mem.r_i().pc);
+            mem.r().a = mem.read_8(0xFF00 + mem.read_8(mem.r_i().pc) as u16);
             mem.r().pc += 1;
             cycles += 2;
         }
         "11_100_000" => {
-            // LD A (FF00 + n)
-            *mem.mut_8(0xFF00 + mem.r_i().pc) = mem.r().a;
+            // LD (FF00 + n) A
+            *mem.mut_8(0xFF00 + mem.read_8(mem.r_i().pc) as u16) = mem.r().a;
             mem.r().pc += 1;
             cycles += 2;
         }
         "11_111_010" => {
             // LD A nn
-            // TODO: check order of hi and lo
             let addr = u8s_to_u16(mem.read_8(mem.r_i().pc), mem.read_8(mem.r_i().pc + 1));
             mem.r().a = mem.read_8(addr);
             mem.r().pc += 2;
             cycles += 3;
+            todo!("LD A nn: check order of hi and lo. a: {:#x}", mem.r().a)
         }
         "11_101_010" => {
             // LD nn A
@@ -643,6 +641,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
             *mem.mut_8(addr) = mem.r().a;
             mem.r().pc += 2;
             cycles += 3;
+            todo!("LD nn A: check order of hi and lo. addr: {:#x}", addr)
         }
         "11_111_001" => {
             // LD SP HL
@@ -697,6 +696,39 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> i32 {
             mem.r().sp -= 2;
 
             mem.r().pc = t as u16 * 0x08;
+        }
+        "11_01_0011" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_011_011" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_011_101" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_100_011" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_100_100" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_101_011" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_100_100" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_100_101" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_110_101" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_110_100" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
+        }
+        "11_110_101" => {
+            panic!("Invalid instruction {:#b}", current_instruction);
         }
         _ => {
             panic!("Unrecognized instruction {:#b}", current_instruction);

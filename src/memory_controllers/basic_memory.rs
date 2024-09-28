@@ -83,7 +83,7 @@ impl MemoryController for BasicMemory {
         } else if addr < 0xFEA0 {
             &mut self.oam[(addr - 0xFE00) as usize]
         } else if addr < 0xFF00 {
-            todo!("Tried to get mutable ref to  prohibited space at {:#x}. Hardware behavior not implemented yet.", addr)
+            todo!("Tried to get mutable ref to prohibited space at {:#x}. Hardware behavior not implemented yet.", addr)
         } else  {
             &mut self.system_mem[(addr - 0xFF00) as usize]
         }
