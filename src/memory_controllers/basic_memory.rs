@@ -64,6 +64,7 @@ impl MemoryController for BasicMemory {
         } else if addr < 0xFF00 {
             todo!("Tried to write prohibited space at {:#x}. Hardware behavior not implemented yet.", addr)
         } else {
+            // todo: check for DMA transfers to 0xFF46 pg 64
             self.system_mem[(addr - 0xFF00) as usize] = val;
         }
     }
