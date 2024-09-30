@@ -2,17 +2,22 @@ extern crate bitflags;
 extern crate bitmatch;
 
 mod constants;
+mod debug;
+mod lcd;
 mod memory;
 mod memory_controllers;
 mod opcodes;
 mod operations;
 mod system;
+mod model;
 
 use std::{env, fs};
+use macroquad::prelude::*;
 
 use system::boot;
 
-fn main() {
+#[macroquad::main("gameboy")]
+async fn main() {
     /*
      * https://archive.org/details/GameBoyProgManVer1.1/page/n7/mode/2up?view=theater
      * general todo:
@@ -45,5 +50,5 @@ fn main() {
         panic!("You must specify a rom path in the first argument")
     }
 
-    boot(rom);
+    boot(rom).await;
 }

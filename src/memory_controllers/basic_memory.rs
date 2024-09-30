@@ -51,6 +51,9 @@ impl MemoryController for BasicMemory {
         if addr < 0x8000 {
             // writing to ROM is skipped
         } else if addr < 0xA000 {
+            if crate::debug::DEBUG_PRINT_VRAM_WRITES {
+                println!("Writing {:#b} to VRAM {:#x}", val, addr);
+            }
             self.vram[(addr - 0x8000) as usize] = val;
         } else if addr < 0xC000 {
             panic!("Tried to write cartridge RAM at {:#x} but cartridge has no RAM", addr)
@@ -62,9 +65,12 @@ impl MemoryController for BasicMemory {
         } else if addr < 0xFEA0 {
             self.oam[(addr - 0xFE00) as usize] = val;
         } else if addr < 0xFF00 {
-            todo!("Tried to write prohibited space at {:#x}. Hardware behavior not implemented yet.", addr)
+            // todo!("Tried to write prohibited space at {:#x}. Hardware behavior not implemented yet.", addr)
         } else {
             // todo: check for DMA transfers to 0xFF46 pg 64
+            if addr == 0xFF46 {
+                todo!("implement DMA transfer")
+            }
             self.system_mem[(addr - 0xFF00) as usize] = val;
         }
     }

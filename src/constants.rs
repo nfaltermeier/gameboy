@@ -1,7 +1,32 @@
 pub const ADDRESS_FIRST_INTERRUPT_HANDLER: u16 = 0x40;
 pub const ADDRESS_ROM_SIZE: u16 = 0x0149;
 pub const ADDRESS_RAM_SIZE: u16 = 0x0149;
+pub const ADDRESS_TILEDATA_1: u16 = 0x8000;
+pub const ADDRESS_TILEDATA_2: u16 = 0x8800;
+pub const ADDRESS_TILEMAP_1: u16 = 0x9800;
+pub const ADDRESS_TILEMAP_2: u16 = 0x9C00;
+pub const ADDRESS_OAM_START: u16 = 0xFE00;
 pub const ADDRESS_IF: u16 = 0xFF0F;
 pub const ADDRESS_LCDC: u16 = 0xFF40;
+pub const ADDRESS_STAT: u16 = 0xFF41;
+pub const ADDRESS_SCY: u16 = 0xFF42;
+pub const ADDRESS_SCX: u16 = 0xFF43;
+pub const ADDRESS_WY: u16 = 0xFF4A;
+pub const ADDRESS_WX: u16 = 0xFF4B;
+pub const ADDRESS_LY: u16 = 0xFF44;
 pub const ADDRESS_STACK_START: u16 = 0xFFFE;
 pub const ADDRESS_IE: u16 = 0xFFFF;
+
+pub const LCDC_BG_WINDOW_ENABLE: u8 = 1;
+pub const LCDC_OBJ_ENABLE: u8 = 1 << 1;
+pub const LCDC_OBJ_SIZE: u8 = 1 << 2;
+pub const LCDC_BG_TILEMAP: u8 = 1 << 3;
+pub const LCDC_BG_AND_WINDOW_TILEDATA: u8 = 1 << 4;
+pub const LCDC_WINDOW_ENABLE: u8 = 1 << 5;
+pub const LCDC_WINDOW_TILEMAP: u8 = 1 << 6;
+pub const LCDC_LCD_ENABLE: u8 = 1 << 7;
+
+pub const PPU_MODE_OAM_SCAN: u8 = 2;
+pub const PPU_MODE_RENDER_PIXEL: u8 = 3;
+pub const PPU_MODE_HORIZ_BLANK: u8 = 0;
+pub const PPU_MODE_VERT_BLANK: u8 = 1;

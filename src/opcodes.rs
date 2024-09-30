@@ -69,9 +69,11 @@ fn check_jump_condition(cc: u8, mem: &dyn MemoryController) -> bool {
 #[bitmatch]
 pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
     let mut cycles = 0;
-    println!("pc: {:#x}", mem.r_i().pc);
     let current_instruction = mem.read_8(mem.r_i().pc);
-    println!("ins: {:#b}", current_instruction);
+    if crate::debug::DEBUG_PRINT_PC {
+        println!("pc: {:#x}", mem.r_i().pc);
+        println!("ins: {:#b}", current_instruction);
+    }
     mem.r().pc += 1;
 
     /*
@@ -230,23 +232,23 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "00_000_010" => {
             // LD (BC) A
-            *mem.mut_8(mem.r_i().bc.r16()) = mem.r().a;
+            mem.write_8(mem.r_i().bc.r16(), mem.r_i().a);
             cycles += 1;
         }
         "00_010_010" => {
             // LD (DE) A
-            *mem.mut_8(mem.r_i().de.r16()) = mem.r().a;
+            mem.write_8(mem.r_i().de.r16(), mem.r_i().a);
             cycles += 1;
         }
         "00_100_010" => {
             // LD (HLI) A
-            *mem.mut_8(mem.r_i().hl.r16()) = mem.r().a;
+            mem.write_8(mem.r_i().hl.r16(), mem.r_i().a);
             mem.r().hl.uinc16();
             cycles += 1;
         }
         "00_110_010" => {
             // LD (HLD) A
-            *mem.mut_8(mem.r_i().hl.r16()) = mem.r().a;
+            mem.write_8(mem.r_i().hl.r16(), mem.r_i().a);
             mem.r().hl.udec16();
             cycles += 1;
         }
@@ -612,7 +614,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "11_100_010" => {
             // LD (C) A
-            *mem.mut_8(0xFF00 + mem.r_i().bc.ind.1 as u16) = mem.r().a;
+            mem.write_8(0xFF00 + mem.r_i().bc.ind.1 as u16, mem.r_i().a);
             cycles += 1;
         }
         "11_110_000" => {
@@ -623,25 +625,23 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "11_100_000" => {
             // LD (FF00 + n) A
-            *mem.mut_8(0xFF00 + mem.read_8(mem.r_i().pc) as u16) = mem.r().a;
+            mem.write_8(0xFF00 + mem.read_8(mem.r_i().pc) as u16, mem.r_i().a);
             mem.r().pc += 1;
             cycles += 2;
         }
         "11_111_010" => {
             // LD A nn
-            let addr = u8s_to_u16(mem.read_8(mem.r_i().pc), mem.read_8(mem.r_i().pc + 1));
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
             mem.r().a = mem.read_8(addr);
             mem.r().pc += 2;
             cycles += 3;
-            todo!("LD A nn: check order of hi and lo. a: {:#x}", mem.r().a)
         }
         "11_101_010" => {
             // LD nn A
-            let addr = u8s_to_u16(mem.read_8(mem.r_i().pc), mem.read_8(mem.r_i().pc + 1));
-            *mem.mut_8(addr) = mem.r().a;
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
+            mem.write_8(addr, mem.r_i().a);
             mem.r().pc += 2;
             cycles += 3;
-            todo!("LD nn A: check order of hi and lo. addr: {:#x}", addr)
         }
         "11_111_001" => {
             // LD SP HL
