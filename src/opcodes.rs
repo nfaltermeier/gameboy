@@ -3,7 +3,7 @@ use bitmatch::bitmatch;
 use crate::memory::{MemoryController, RegisterFlags};
 use crate::operations::*;
 
-fn get_register_mut(mem: &mut dyn MemoryController, code: u8) -> &mut u8 {
+fn get_register_mut_by_code(mem: &mut dyn MemoryController, code: u8) -> &mut u8 {
     match code {
         0b00000111 => &mut mem.r().a,
         0 => &mut mem.r().bc.ind.0,
@@ -20,7 +20,7 @@ fn get_register_mut(mem: &mut dyn MemoryController, code: u8) -> &mut u8 {
     }
 }
 
-fn get_register_val(mem: &dyn MemoryController, code: u8) -> u8 {
+fn get_register_val_code(mem: &dyn MemoryController, code: u8) -> u8 {
     match code {
         0b00000111 => mem.r_i().a,
         0 => mem.r_i().bc.ind.0,
@@ -37,7 +37,7 @@ fn get_register_val(mem: &dyn MemoryController, code: u8) -> u8 {
     }
 }
 
-fn get_register_pair_val(mem: &dyn MemoryController, code: u8) -> u16 {
+fn get_register_pair_val_code(mem: &dyn MemoryController, code: u8) -> u16 {
     match code {
         0 => mem.r_i().bc.r16(),
         0b00000001 => mem.r_i().de.r16(),
@@ -226,23 +226,23 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "00_lll_100" => {
             // INC r, INC (HL)
-            let val = inc_8(get_register_val(mem, l), mem);
-            *get_register_mut(mem, l) = val;
+            let val = inc_8(get_register_val_code(mem, l), mem);
+            *get_register_mut_by_code(mem, l) = val;
             if l == 0b00000110 {
                 cycles += 2;
             }
         }
         "00_lll_101" => {
             // DEC r, DEC (HL)
-            let val = dec_8(get_register_val(mem, l), mem);
-            *get_register_mut(mem, l) = val;
+            let val = dec_8(get_register_val_code(mem, l), mem);
+            *get_register_mut_by_code(mem, l) = val;
             if l == 0b00000110 {
                 cycles += 2;
             }
         }
         "00_mmm_110" => {
             // LD r n
-            *get_register_mut(mem, m) = mem.read_8(mem.r_i().pc);
+            *get_register_mut_by_code(mem, m) = mem.read_8(mem.r_i().pc);
             mem.r().pc += 1;
             cycles += 1;
             if m == 0b00000110 {
@@ -251,19 +251,19 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "00_ss1_001" => {
             // ADD HL, (ss)
-            let val = add_16(mem.r().hl.r16(), get_register_pair_val(mem, s), mem);
+            let val = add_16(mem.r().hl.r16(), get_register_pair_val_code(mem, s), mem);
             mem.r().hl.s16(val);
             cycles += 1;
         }
         "00_ss0_011" => {
             // INC ss
-            let val = get_register_pair_val(mem, s);
+            let val = get_register_pair_val_code(mem, s);
             write_register_pair_by_code(mem, s, inc_16(val));
             cycles += 1;
         }
         "00_ss1_011" => {
             // DEC ss
-            let val = get_register_pair_val(mem, s);
+            let val = get_register_pair_val_code(mem, s);
             write_register_pair_by_code(mem, s, dec_16(val));
             cycles += 1;
         }
@@ -354,8 +354,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "01_mmm_lll" => {
             // LD r r'
-            let from_val = get_register_val(mem, l);
-            let to = get_register_mut(mem, m);
+            let from_val = get_register_val_code(mem, l);
+            let to = get_register_mut_by_code(mem, m);
             *to = from_val;
             if m == 0b00000110 || l == 0b00000110 {
                 cycles += 1;
@@ -363,56 +363,56 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "10_000lll" => {
             // ADD A, r and ADD A, (HL)
-            mem.r().a = add_8(mem.r().a, get_register_val(mem, l), mem, false);
+            mem.r().a = add_8(mem.r().a, get_register_val_code(mem, l), mem, false);
             if l == 0b00000110 {
                 cycles += 1;
             }
         }
         "10_001_lll" => {
             // ADC A, r and ADC A, (HL)
-            mem.r().a = add_8(mem.r().a, get_register_val(mem, l), mem, true);
+            mem.r().a = add_8(mem.r().a, get_register_val_code(mem, l), mem, true);
             if l == 0b00000110 {
                 cycles += 1;
             }
         }
         "10_010_lll" => {
             // SUB A, r and SUB A, (HL)
-            mem.r().a = sub_8(mem.r().a, get_register_val(mem, l), mem, false);
+            mem.r().a = sub_8(mem.r().a, get_register_val_code(mem, l), mem, false);
             if l == 0b00000110 {
                 cycles += 1;
             }
         }
         "10_011_lll" => {
             // SBC A, r and SBC A, (HL)
-            mem.r().a = sub_8(mem.r().a, get_register_val(mem, l), mem, true);
+            mem.r().a = sub_8(mem.r().a, get_register_val_code(mem, l), mem, true);
             if l == 0b00000110 {
                 cycles += 1;
             }
         }
         "10_100_lll" => {
             // AND A, r and AND A, (HL)
-            mem.r().a = and_8(mem.r().a, get_register_val(mem, l), mem);
+            mem.r().a = and_8(mem.r().a, get_register_val_code(mem, l), mem);
             if l == 0b00000110 {
                 cycles += 1;
             }
         }
         "10_101_lll" => {
             // XOR A, r and XOR A, (HL)
-            mem.r().a = xor_8(mem.r().a, get_register_val(mem, l), mem);
+            mem.r().a = xor_8(mem.r().a, get_register_val_code(mem, l), mem);
             if l == 0b00000110 {
                 cycles += 1;
             }
         }
         "10_110_lll" => {
             // OR A, r and OR A, (HL)
-            mem.r().a = or_8(mem.r().a, get_register_val(mem, l), mem);
+            mem.r().a = or_8(mem.r().a, get_register_val_code(mem, l), mem);
             if l == 0b00000110 {
                 cycles += 1;
             }
         }
         "10_111_lll" => {
             // CP A, r and CP A, (HL)
-            cp_8(mem.r().a, get_register_val(mem, l), mem);
+            cp_8(mem.r().a, get_register_val_code(mem, l), mem);
             if l == 0b00000110 {
                 cycles += 1;
             }
@@ -457,8 +457,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             match next_instruction {
                 "00_000_rrr" => {
                     // RLC r, RLC (HL)
-                    let result = rlc(get_register_val(mem, r), mem, true);
-                    *get_register_mut(mem, r) = result;
+                    let result = rlc(get_register_val_code(mem, r), mem, true);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -466,8 +466,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_001_rrr" => {
                     // RRC r, RRC (HL)
-                    let result = rrc(get_register_val(mem, r), mem, true);
-                    *get_register_mut(mem, r) = result;
+                    let result = rrc(get_register_val_code(mem, r), mem, true);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -475,8 +475,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_010_rrr" => {
                     // RL r, RL (HL)
-                    let result = rl(get_register_val(mem, r), mem, true);
-                    *get_register_mut(mem, r) = result;
+                    let result = rl(get_register_val_code(mem, r), mem, true);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -484,8 +484,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_011_rrr" => {
                     // RR r, RR (HL)
-                    let result = rr(get_register_val(mem, r), mem, true);
-                    *get_register_mut(mem, r) = result;
+                    let result = rr(get_register_val_code(mem, r), mem, true);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -493,8 +493,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_100_rrr" => {
                     // SLA r, SLA (HL)
-                    let result = sla(get_register_val(mem, r), mem);
-                    *get_register_mut(mem, r) = result;
+                    let result = sla(get_register_val_code(mem, r), mem);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -502,8 +502,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_101_rrr" => {
                     // SRA r, SRA (HL)
-                    let result = sra(get_register_val(mem, r), mem);
-                    *get_register_mut(mem, r) = result;
+                    let result = sra(get_register_val_code(mem, r), mem);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -511,8 +511,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_110_rrr" => {
                     // SWAP r, SWAP (HL)
-                    let result = swap(get_register_val(mem, r), mem);
-                    *get_register_mut(mem, r) = result;
+                    let result = swap(get_register_val_code(mem, r), mem);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -520,8 +520,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_111_rrr" => {
                     // SRL r, SRL (HL)
-                    let result = srl(get_register_val(mem, r), mem);
-                    *get_register_mut(mem, r) = result;
+                    let result = srl(get_register_val_code(mem, r), mem);
+                    *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
                         cycles += 2;
@@ -529,7 +529,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "01_bbb_rrr" => {
                     // BIT b, r, BIT b, (HL)
-                    bit(get_register_val(mem, r), b, mem);
+                    bit(get_register_val_code(mem, r), b, mem);
 
                     if r == 0b00000110 {
                         cycles += 1;
@@ -537,8 +537,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "10_bbb_rrr" => {
                     // RES b, r, RES b, (HL)
-                    let result = res(get_register_val(mem, r), b);
-                    *get_register_mut(mem, r) = result;
+                    let result = res(get_register_val_code(mem, r), b);
+                    *get_register_mut_by_code(mem, r) = result;
                     
 
                     if r == 0b00000110 {
@@ -547,8 +547,8 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "11_bbb_rrr" => {
                     // SET b, r, SET b, (HL)
-                    let result = set(get_register_val(mem, r), b);
-                    *get_register_mut(mem, r) = result;
+                    let result = set(get_register_val_code(mem, r), b);
+                    *get_register_mut_by_code(mem, r) = result;
                     
 
                     if r == 0b00000110 {
@@ -626,7 +626,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             // JP HL
             let addr = mem.r().hl.r16();
             mem.r().pc = addr;
-            todo!("JP HL: Check if this actually works properly. addr: {:#x}", addr)
+            todo!("JP HL: Check if this actually works properly. addr: {:#x} and pc: {:#x}", addr, starting_pc)
         }
         "11_101_110" => {
             // XOR A, n
