@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use bitflags::bitflags;
 
 bitflags! {
@@ -20,6 +22,7 @@ fn u16_to_u8s(d: u16) -> (u8, u8) {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct RegisterPair {
     pub ind: (u8, u8),
 }
@@ -59,6 +62,7 @@ impl Default for RegisterPair {
 
 #[repr(C)]
 #[derive(Default)]
+#[derive(Debug)]
 pub struct Registers {
     pub a: u8,
     pub f: RegisterFlags,
@@ -79,7 +83,9 @@ impl Registers {
 
 pub trait MemoryController {
     fn read_8(&self, addr: u16) -> u8;
+    fn read_8_sys(&self, addr: u16) -> u8;
     fn write_8(&mut self, addr: u16, val: u8);
+    fn write_8_sys(&mut self, addr: u16, val: u8);
     // remove?
     fn mut_8(&mut self, addr: u16) -> &mut u8;
     fn r(&mut self) -> &mut Registers;

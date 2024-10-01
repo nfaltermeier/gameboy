@@ -12,7 +12,6 @@ mod system;
 mod model;
 
 use std::{env, fs};
-use macroquad::prelude::*;
 
 use system::boot;
 

@@ -50,6 +50,19 @@ fn get_register_pair_val(mem: &dyn MemoryController, code: u8) -> u16 {
     }
 }
 
+fn write_register_pair_by_code(mem: &mut dyn MemoryController, code: u8, val: u16) {
+    match code {
+        0 => mem.r().bc.s16(val),
+        0b00000001 => mem.r().de.s16(val),
+        0b00000010 => mem.r().hl.s16(val),
+        0b00000011 => mem.r().sp = val,
+        _ => panic!(
+            "Unrecognized register code in get_register_val: {:#b} (shifted to lsb?)",
+            code
+        ),
+    }
+}
+
 pub fn u8s_to_u16(h: u8, l: u8) -> u16 {
     let val =  ((h as u16) << 8) | l as u16;
     val
@@ -66,14 +79,50 @@ fn check_jump_condition(cc: u8, mem: &dyn MemoryController) -> bool {
         || (cc == 0b00000011 && mem.r_i().f.contains(RegisterFlags::CY))
 }
 
+static mut DEBUG_PRINTED: bool = false;
+static mut DEBUG_PRINT_COUNT: u8 = 0;
+
 #[bitmatch]
 pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
     let mut cycles = 0;
-    let current_instruction = mem.read_8(mem.r_i().pc);
+    let starting_pc = mem.r_i().pc;
+    let current_instruction = mem.read_8(starting_pc);
     if crate::debug::DEBUG_PRINT_PC {
-        println!("pc: {:#x}", mem.r_i().pc);
+        println!("pc: {:#x}", starting_pc);
         println!("ins: {:#b}", current_instruction);
     }
+
+    // let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap();
+    // if now.as_millis() % 100 == 0 || starting_pc == 0x2795 || starting_pc == 0x2798 {
+    //     unsafe {
+    //         if !DEBUG_PRINTED || starting_pc == 0x2795 || starting_pc == 0x2798 {
+    //             DEBUG_PRINTED = true;
+    //             println!("{:?}", mem.r_i());
+    //             println!("pc: {:#x}", starting_pc);
+    //             println!("ins: {:#b}", current_instruction);
+    //         }
+    //     }
+    // } else {
+    //     unsafe {
+    //         DEBUG_PRINTED = false;
+    //     }
+    // }
+
+    if starting_pc == 0x2795 {
+        unsafe {
+            DEBUG_PRINT_COUNT = 20;
+        }
+    }
+
+    unsafe {
+        if DEBUG_PRINT_COUNT > 0 {
+            DEBUG_PRINT_COUNT -= 1;
+            println!("{:?}", mem.r_i());
+            println!("pc: {:#x}", starting_pc);
+            println!("ins: {:#b}", current_instruction);
+        }
+    }
+
     mem.r().pc += 1;
 
     /*
@@ -209,13 +258,13 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         "00_ss0_011" => {
             // INC ss
             let val = get_register_pair_val(mem, s);
-            mem.r().hl.s16(inc_16(val));
+            write_register_pair_by_code(mem, s, inc_16(val));
             cycles += 1;
         }
         "00_ss1_011" => {
             // DEC ss
             let val = get_register_pair_val(mem, s);
-            mem.r().hl.s16(dec_16(val));
+            write_register_pair_by_code(mem, s, dec_16(val));
             cycles += 1;
         }
         "00_101_010" => {
@@ -598,6 +647,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             cycles += 1;
         }
         "11_111_011" => {
+            // EI
             *mem.ime() = true;
         }
         "11_111_110" => {

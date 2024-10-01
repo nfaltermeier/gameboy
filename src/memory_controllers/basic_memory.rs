@@ -1,4 +1,4 @@
-use crate::memory::{MemoryController, Registers};
+use crate::{constants::ADDRESS_DIV, memory::{MemoryController, Registers}};
 
 #[repr(C)]
 pub struct BasicMemory {
@@ -27,6 +27,10 @@ impl BasicMemory {
 
 impl MemoryController for BasicMemory {
     fn read_8(&self, addr: u16) -> u8 {
+        self.read_8_sys(addr)
+    }
+
+    fn read_8_sys(&self, addr: u16) -> u8 {
         if addr < 0x8000 {
             self.rom[addr as usize]
         } else if addr < 0xA000 {
@@ -47,7 +51,15 @@ impl MemoryController for BasicMemory {
         }
     }
 
-    fn write_8(&mut self, addr: u16, val: u8) {
+    fn write_8(&mut self, addr: u16, mut val: u8) {
+        if addr == ADDRESS_DIV {
+            val = 0;
+        }
+
+        self.write_8_sys(addr, val);
+    }
+
+    fn write_8_sys(&mut self, addr: u16, val: u8) {
         if addr < 0x8000 {
             // writing to ROM is skipped
         } else if addr < 0xA000 {

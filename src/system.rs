@@ -18,6 +18,8 @@ pub async fn boot(rom: Vec<u8>) {
     mem.r().sp = ADDRESS_STACK_START;
     mem.write_8(ADDRESS_LCDC, 0x83);
     *mem.ime() = false;
+    // skip boot ROM and go straight to game ROM
+    mem.r().pc = 0x0100;
 
     run_loop(&mut *mem).await;
 }
@@ -33,10 +35,42 @@ async fn run_loop(mem: &mut dyn MemoryController) {
     let mut pixel_render = PixelRenderData::new();
     let mut first_dot_after_switch = false;
     let mut lcd = LCD::new();
+    let mut last_stat_interrupt_state = false;
+
+    let mut time_next_div = Instant::now();
+
+    let mut time_next_timer = Instant::now();
 
     loop {
         let now = Instant::now();
         let mut interrupt_triggered = false;
+
+        if now >= time_next_div {
+            mem.write_8_sys(ADDRESS_DIV, mem.read_8_sys(ADDRESS_DIV).wrapping_add(1));
+            time_next_div = now.checked_add(Duration::from_nanos(61035)).unwrap();
+        }
+
+        if now >= time_next_timer {
+            let tac = mem.read_8_sys(ADDRESS_TAC);
+            if (tac & 4) != 0 {
+                let tima = mem.read_8_sys(ADDRESS_TIMA);
+                if tima == 0xFF {
+                    mem.write_8_sys(ADDRESS_IF, mem.read_8_sys(ADDRESS_IF) | 4);
+                    mem.write_8_sys(ADDRESS_TIMA, mem.read_8_sys(ADDRESS_TMA));
+                } else {
+                    mem.write_8_sys(ADDRESS_TIMA, tima + 1);
+                }
+
+                let duration = match tac & 3 {
+                    0 => Duration::from_nanos(244141),
+                    1 => Duration::from_nanos(3815),
+                    2 => Duration::from_nanos(15259),
+                    3 => Duration::from_nanos(61035),
+                    _ => panic!("Invalid timer clock select value")
+                };
+                time_next_timer = now.checked_add(duration).unwrap();
+            }
+        }
 
         if now >= time_next_instruction {
             if ime_actually_enabled {
@@ -86,8 +120,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
             dots_left -= 1;
             let reset_first_dot_flag = first_dot_after_switch;
 
-            let stat = mem.read_8(ADDRESS_STAT);
-            let ppu_mode = stat & 0b00000011;
+            let mut stat = mem.read_8(ADDRESS_STAT);
+            let mut ppu_mode = stat & 0b00000011;
 
             if crate::debug::DEBUG_PRINT_PPU {
                 println!("dots_left: {}", dots_left);
@@ -278,6 +312,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                             dots_left = 456;
                             // + 1 will change mode from 0 to 1
                             mem.write_8(ADDRESS_STAT, stat + 1);
+                            mem.write_8_sys(ADDRESS_IF, mem.read_8_sys(ADDRESS_IF) | 1);
                         } else {
                             // transition to OAM scan
                             dots_left = 80;
@@ -311,6 +346,33 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                     }
                 }
                 _ => panic!("Invalid ppu_mode")
+            }
+
+            // get the latest values
+            let ly = mem.read_8_sys(ADDRESS_LY);
+            let lyc = mem.read_8_sys(ADDRESS_LYC);
+            stat = mem.read_8(ADDRESS_STAT);
+            ppu_mode = stat & 0b00000011;
+            let ly_match = ly == lyc;
+            if (ly_match && (stat & 1 << 6) != 0)
+                || (ppu_mode == 2 && (stat & 1 << 5) != 0)
+                || (ppu_mode == 1 && (stat & 1 << 4) != 0)
+                || (ppu_mode == 0 && (stat & 1 << 3) != 0)
+            {
+                if !last_stat_interrupt_state {
+                    last_stat_interrupt_state = true;
+                    mem.write_8_sys(ADDRESS_IF, mem.read_8_sys(ADDRESS_IF) | 2);
+                }
+            } else {
+                last_stat_interrupt_state = false;
+            }
+
+            if ly_match != ((stat & 1 << 2) != 0) {
+                if ly_match {
+                    mem.write_8_sys(ADDRESS_STAT, stat | 1 << 2);
+                } else {
+                    mem.write_8_sys(ADDRESS_STAT, stat & !(1 << 2));
+                }
             }
 
             // this has to go really fast... may need refactoring to keep up?
