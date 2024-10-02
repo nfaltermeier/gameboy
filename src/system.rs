@@ -1,13 +1,14 @@
 use std::{
     collections::VecDeque,
-    thread,
-    time::{self, Duration, Instant},
+    panic::{self, AssertUnwindSafe},
+    time::{Duration, Instant},
 };
 
 use morton_encoding::morton_encode;
 
 use crate::{
     constants::*,
+    debug::{WatchType, WatchValue},
     lcd::Lcd,
     memory::MemoryController,
     memory_controllers::basic_memory::BasicMemory,
@@ -38,10 +39,20 @@ pub async fn boot(rom: Vec<u8>) {
     run_loop(&mut *mem).await;
 }
 
+fn create_watches() -> Vec<Box<WatchValue<u16>>> {
+    vec![Box::new(WatchValue::new(
+        "de set to 0x9303",
+        0x9303,
+        |mem: &dyn MemoryController| mem.r_i().de.r16(),
+        WatchType::Rising,
+    ))]
+}
+
 async fn run_loop(mem: &mut dyn MemoryController) {
     let mut ime_actually_enabled = false;
     let mut ime_actually_enable_next = false;
     let mut time_next_instruction = Instant::now();
+    let mut watches = create_watches();
 
     let mut time_next_ppu = Instant::now();
     let mut dots_left = 1;
@@ -114,8 +125,38 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                 }
             }
 
+            let dma_source_address = mem.shared_data().dma_source_address;
+            if dma_source_address >= 0x8000 && dma_source_address < 0xE000 {
+                let offset = dma_source_address & 0xFF;
+                if offset <= 0x9F {
+                    mem.write_8(dma_source_address, mem.read_8(ADDRESS_OAM_START + offset));
+                    mem.shared_data_mut().dma_source_address += 1;
+                }
+            }
+
             if !interrupt_triggered {
-                let cycles = process_instruction(mem);
+                let pc = mem.r_i().pc;
+                let cycles: u64;
+                let result = panic::catch_unwind(AssertUnwindSafe(|| process_instruction(mem)));
+                match result {
+                    Ok(c) => {
+                        cycles = c;
+                    }
+                    Err(_) => {
+                        let current_instruction = mem.read_8(pc);
+                        println!("Caught an unwind from process_instruction. Instruction that triggered the panic pc: {:#x}, ins: {:#b}", pc, current_instruction);
+                        println!("Register state after the panic: {:?}", mem.r_i());
+                        panic!("Repanicing after caught an unwind from process_instruction");
+                    }
+                }
+
+                for watch in &mut watches {
+                    if watch.test(mem) {
+                        let current_instruction = mem.read_8(pc);
+                        println!("{} triggered after process_instruction. Instruction that triggered pc: {:#x}, ins: {:#b}.", watch.name, pc, current_instruction);
+                        println!("Register state after watch triggered: {:?}", mem.r_i());
+                    }
+                }
 
                 wait_cycles(cycles, &mut time_next_instruction, &now);
             }

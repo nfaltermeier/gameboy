@@ -96,16 +96,32 @@ impl Debug for Registers {
     }
 }
 
+#[derive(Default)]
+pub struct MemorySharedData {
+    pub r: Registers,
+    pub ime: bool,
+    // todo: CPU and PPU access to memory is restricted while a DMA transfer is active
+    pub dma_source_address: u16,
+}
+
 pub trait MemoryController {
+    fn shared_data(&self) -> &MemorySharedData;
+    fn shared_data_mut(&mut self) -> &mut MemorySharedData;
     fn read_8(&self, addr: u16) -> u8;
     fn read_8_sys(&self, addr: u16) -> u8;
     fn write_8(&mut self, addr: u16, val: u8);
     fn write_8_sys(&mut self, addr: u16, val: u8);
     // remove?
     fn mut_8(&mut self, addr: u16) -> &mut u8;
-    fn r(&mut self) -> &mut Registers;
-    fn r_i(&self) -> &Registers;
-    fn ime(&mut self) -> &mut bool;
+    fn r(&mut self) -> &mut Registers {
+        &mut self.shared_data_mut().r
+    }
+    fn r_i(&self) -> &Registers {
+        &self.shared_data().r
+    }
+    fn ime(&mut self) -> &mut bool {
+        &mut self.shared_data_mut().ime
+    }
 }
 
 #[cfg(test)]

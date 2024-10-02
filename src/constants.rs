@@ -16,6 +16,7 @@ pub const ADDRESS_STAT: u16 = 0xFF41;
 pub const ADDRESS_SCY: u16 = 0xFF42;
 pub const ADDRESS_SCX: u16 = 0xFF43;
 pub const ADDRESS_LYC: u16 = 0xFF45;
+pub const ADDRESS_DMA_CONTROL: u16 = 0xFF46;
 pub const ADDRESS_WY: u16 = 0xFF4A;
 pub const ADDRESS_WX: u16 = 0xFF4B;
 pub const ADDRESS_LY: u16 = 0xFF44;

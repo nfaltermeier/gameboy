@@ -1,5 +1,6 @@
 use bitmatch::bitmatch;
 
+use crate::debug::{DEBUG_PRINT_WHEN_PC, DEBUG_PRINT_WHEN_PC_TIMES};
 use crate::memory::{MemoryController, RegisterFlags};
 use crate::operations::*;
 
@@ -107,9 +108,9 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
     //     }
     // }
 
-    if starting_pc == 0x27a3 {
+    if starting_pc == DEBUG_PRINT_WHEN_PC {
         unsafe {
-            DEBUG_PRINT_COUNT = 0;
+            DEBUG_PRINT_COUNT = DEBUG_PRINT_WHEN_PC_TIMES;
         }
     }
 
@@ -583,7 +584,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             mem.r().pc += 1;
             cycles += 1;
         }
-        "11_010_110" => {
+        "11_100_110" => {
             // AND A, n
             let n = mem.read_8(mem.r_i().pc);
             mem.r().a = and_8(mem.r().a, n, mem);
@@ -626,11 +627,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             // JP HL
             let addr = mem.r().hl.r16();
             mem.r().pc = addr;
-            todo!(
-                "JP HL: Check if this actually works properly. addr: {:#x} and pc: {:#x}",
-                addr,
-                starting_pc
-            )
         }
         "11_101_110" => {
             // XOR A, n
@@ -752,40 +748,76 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             mem.r().pc = t as u16 * 0x08;
         }
         "11_010_011" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_011_011" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_011_101" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_100_011" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_100_100" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_101_011" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_100_100" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_100_101" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_110_101" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_110_100" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         "11_110_101" => {
-            panic!("Invalid instruction {:#b}", current_instruction);
+            panic!(
+                "Invalid instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
         _ => {
-            panic!("Unrecognized instruction {:#b}", current_instruction);
+            panic!(
+                "Unrecognized instruction {:#b} from pc {:#x}",
+                current_instruction, starting_pc
+            );
         }
     }
 
@@ -803,18 +835,18 @@ mod tests {
         let mut m = BasicMemory::default();
         let initial_bc = 0xDEAD;
 
-        m.r.bc.s16(initial_bc);
-        m.r.pc = 0x8000;
-        m.r.sp = 0x9000;
+        m.r().bc.s16(initial_bc);
+        m.r().pc = 0x8000;
+        m.r().sp = 0x9000;
         // PUSH bc
         m.write_8(0x8000, 0b11000101);
         // POP bc
         m.write_8(0x8001, 0b11000001);
         process_instruction(&mut m);
-        m.r.bc.s16(0);
+        m.r().bc.s16(0);
         process_instruction(&mut m);
         assert_eq!(
-            m.r.bc.r16(),
+            m.r().bc.r16(),
             initial_bc,
             "PUSHing and then POPing changes the pushed value"
         );
@@ -824,29 +856,29 @@ mod tests {
     fn pop_register_order() {
         let mut m = BasicMemory::default();
 
-        m.r.sp = 0xFFFC;
+        m.r().sp = 0xFFFC;
         m.write_8(0xFFFC, 0x5F);
         m.write_8(0xFFFD, 0x3C);
 
-        m.r.pc = 0x8000;
+        m.r().pc = 0x8000;
         m.write_8(0x8000, 0b11_000_001);
         process_instruction(&mut m);
 
-        assert_eq!(m.r.bc.ind.0, 0x3C);
-        assert_eq!(m.r.bc.ind.1, 0x5F);
+        assert_eq!(m.r().bc.ind.0, 0x3C);
+        assert_eq!(m.r().bc.ind.1, 0x5F);
     }
 
     #[test]
     fn ld_16_byte_register_contents() {
         let mut m = BasicMemory::default();
-        m.r.pc = 0x8000;
+        m.r().pc = 0x8000;
         m.write_8(0x8000, 0b00_100_001);
         // Gameboy is little-endian, so least significant byte comes first
         m.write_8(0x8001, 0x5B);
         m.write_8(0x8002, 0x3A);
         process_instruction(&mut m);
-        assert_eq!(m.r.hl.r16(), 0x3A5B);
-        assert_eq!(m.r.hl.ind.0, 0x3A);
-        assert_eq!(m.r.hl.ind.1, 0x5B);
+        assert_eq!(m.r().hl.r16(), 0x3A5B);
+        assert_eq!(m.r().hl.ind.0, 0x3A);
+        assert_eq!(m.r().hl.ind.1, 0x5B);
     }
 }
