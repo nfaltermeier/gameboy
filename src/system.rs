@@ -8,7 +8,7 @@ use morton_encoding::morton_encode;
 
 use crate::{
     constants::*,
-    debug::{GenericWatch, WatchType, WatchValue},
+    debug::{Watch, WatchType, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
     lcd::Lcd,
     memory::MemoryController,
     memory_controllers::basic_memory::BasicMemory,
@@ -39,20 +39,13 @@ pub async fn boot(rom: Vec<u8>) {
     run_loop(&mut *mem).await;
 }
 
-fn create_watches() -> Vec<Box<dyn GenericWatch>> {
+fn create_watches() -> Vec<Watch> {
     vec![
-        Box::new(WatchValue::new(
-            "de set to 0x9303",
-            0x9303,
-            Box::from(|mem: &dyn MemoryController| mem.r_i().de.r16()),
-            WatchType::Rising,
-        )),
-        Box::new(WatchValue::new(
-            "d set to 0x93",
-            0x93,
-            Box::from(|mem: &dyn MemoryController| mem.r_i().de.ind.0),
-            WatchType::Rising,
-        )),
+        // Watch::new(
+        //     "de set to 0x9303",
+        //     Box::from(|mem: &dyn MemoryController| mem.r_i().de.r16() == 0x9303),
+        //     WatchType::Rising,
+        // ),
     ]
 }
 
@@ -144,19 +137,22 @@ async fn run_loop(mem: &mut dyn MemoryController) {
 
             if !interrupt_triggered {
                 let pc = mem.r_i().pc;
-                let cycles: u64;
-                let result = panic::catch_unwind(AssertUnwindSafe(|| process_instruction(mem)));
-                match result {
-                    Ok(c) => {
-                        cycles = c;
+                let cycles = if DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION {
+                    let result = panic::catch_unwind(AssertUnwindSafe(|| process_instruction(mem)));
+                    match result {
+                        Ok(c) => {
+                            c
+                        }
+                        Err(_) => {
+                            let current_instruction = mem.read_8(pc);
+                            println!("Caught an unwind from process_instruction. Instruction that triggered the panic pc: {:#x}, ins: {:#b}", pc, current_instruction);
+                            println!("Register state after the panic: {:?}", mem.r_i());
+                            panic!("Repanicing after caught an unwind from process_instruction");
+                        }
                     }
-                    Err(_) => {
-                        let current_instruction = mem.read_8(pc);
-                        println!("Caught an unwind from process_instruction. Instruction that triggered the panic pc: {:#x}, ins: {:#b}", pc, current_instruction);
-                        println!("Register state after the panic: {:?}", mem.r_i());
-                        panic!("Repanicing after caught an unwind from process_instruction");
-                    }
-                }
+                } else {
+                    process_instruction(mem)
+                };
 
                 for watch in &mut watches {
                     if watch.test(mem) {

@@ -162,10 +162,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
             }
             cycles += 2;
-            todo!(
-                "Check if this JR e actually works properly. PC: {:#x}",
-                starting_pc
-            )
         }
         "00_011_010" => {
             // LD A (DE)
@@ -740,7 +736,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "11_ttt_111" => {
             // RST t
-            let vals = u16_to_u8s(mem.r().pc + 1);
+            let vals = u16_to_u8s(mem.r().pc);
             mem.write_8(mem.r_i().sp - 1, vals.0);
             mem.write_8(mem.r_i().sp - 2, vals.1);
             mem.r().sp -= 2;

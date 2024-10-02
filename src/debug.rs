@@ -1,5 +1,8 @@
 use crate::memory::MemoryController;
 
+// probably bad for performance
+pub const DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION: bool = true;
+
 pub const DEBUG_PRINT_PC: bool = false;
 pub const DEBUG_PRINT_PPU: bool = false;
 pub const DEBUG_PRINT_FRAME_TIME: bool = false;
@@ -7,12 +10,7 @@ pub const DEBUG_PRINT_VRAM_WRITES: bool = false;
 pub const DEBUG_PRINT_INTERRUPTS: bool = false;
 
 pub const DEBUG_PRINT_WHEN_PC: u16 = 0x28;
-pub const DEBUG_PRINT_WHEN_PC_TIMES: u8 = 10;
-
-pub trait GenericWatch {
-    fn test(&mut self, mem: &dyn MemoryController) -> bool;
-    fn name(&self) -> &str;
-}
+pub const DEBUG_PRINT_WHEN_PC_TIMES: u8 = 0;
 
 pub enum WatchType {
     Rising,
@@ -20,63 +18,46 @@ pub enum WatchType {
     Falling,
 }
 
-pub struct WatchValue<T>
-where
-    T: PartialEq,
+pub struct Watch
 {
     name: &'static str,
-    target_val: T,
-    last_val: Option<T>,
-    eval_fn: Box<dyn Fn(&dyn MemoryController) -> T>,
+    eval_fn: Box<dyn Fn(&dyn MemoryController) -> bool>,
     watch_type: WatchType,
+    last_result: bool,
 }
 
-impl<T> WatchValue<T>
-where
-    T: PartialEq,
+impl Watch
 {
     pub fn new(
         name: &'static str,
-        target_val: T,
-        eval_fn: Box<dyn Fn(&dyn MemoryController) -> T>,
+        eval_fn: Box<dyn Fn(&dyn MemoryController) -> bool>,
         watch_type: WatchType,
     ) -> Self {
-        WatchValue {
+        Watch {
             name,
-            target_val,
-            last_val: None,
             eval_fn,
             watch_type,
+            last_result: false,
         }
     }
-}
 
-impl<T> GenericWatch for WatchValue<T> where T : PartialEq{
-    fn test(&mut self, mem: &dyn MemoryController) -> bool {
-        let val: T = (self.eval_fn)(mem);
+    pub fn test(&mut self, mem: &dyn MemoryController) -> bool {
+        let val = (self.eval_fn)(mem);
         let trigger = match self.watch_type {
             WatchType::Rising => {
-                let last_triggers = match &self.last_val {
-                    None => true,
-                    Some(lv) => *lv != val,
-                };
-                val == self.target_val && last_triggers
+                val && !self.last_result
             }
-            WatchType::Constant => val == self.target_val,
+            WatchType::Constant => val,
             WatchType::Falling => {
-                let last_triggers = match &self.last_val {
-                    None => false,
-                    Some(lv) => *lv == val,
-                };
-                val != self.target_val && last_triggers
+                !val && self.last_result
             }
         };
 
-        self.last_val = Some(val);
+        self.last_result = val;
         trigger
     }
     
-    fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 }
