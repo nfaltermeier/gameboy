@@ -161,7 +161,10 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
             }
             cycles += 2;
-            todo!("Check if this JR e actually works properly. PC: {:#x}", starting_pc)
+            todo!(
+                "Check if this JR e actually works properly. PC: {:#x}",
+                starting_pc
+            )
         }
         "00_011_010" => {
             // LD A (DE)
@@ -538,7 +541,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                     // RES b, r, RES b, (HL)
                     let result = res(get_register_val_code(mem, r), b);
                     *get_register_mut_by_code(mem, r) = result;
-                    
 
                     if r == 0b00000110 {
                         cycles += 1;
@@ -548,7 +550,6 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                     // SET b, r, SET b, (HL)
                     let result = set(get_register_val_code(mem, r), b);
                     *get_register_mut_by_code(mem, r) = result;
-                    
 
                     if r == 0b00000110 {
                         cycles += 1;
@@ -625,7 +626,11 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             // JP HL
             let addr = mem.r().hl.r16();
             mem.r().pc = addr;
-            todo!("JP HL: Check if this actually works properly. addr: {:#x} and pc: {:#x}", addr, starting_pc)
+            todo!(
+                "JP HL: Check if this actually works properly. addr: {:#x} and pc: {:#x}",
+                addr,
+                starting_pc
+            )
         }
         "11_101_110" => {
             // XOR A, n
@@ -781,7 +786,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         _ => {
             panic!("Unrecognized instruction {:#b}", current_instruction);
-        },
+        }
     }
 
     cycles + 1

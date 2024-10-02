@@ -22,8 +22,7 @@ fn u16_to_u8s(d: u16) -> (u8, u8) {
 }
 
 #[repr(C)]
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct RegisterPair {
     pub ind: (u8, u8),
 }
@@ -56,8 +55,7 @@ impl RegisterPair {
 }
 
 #[repr(C)]
-#[derive(Default)]
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct Registers {
     pub a: u8,
     pub f: RegisterFlags,

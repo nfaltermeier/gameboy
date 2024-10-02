@@ -1,4 +1,7 @@
-use crate::{memory::{MemoryController, RegisterFlags}, opcodes::{u16_to_u8s, u8s_to_u16}};
+use crate::{
+    memory::{MemoryController, RegisterFlags},
+    opcodes::{u16_to_u8s, u8s_to_u16},
+};
 
 pub fn add_8(a: u8, mut b: u8, m: &mut dyn MemoryController, carry: bool) -> u8 {
     let al = a & 0x0F;
@@ -210,7 +213,7 @@ pub fn rr(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
 
 pub fn sla(a: u8, m: &mut dyn MemoryController) -> u8 {
     let result = a << 1;
-    
+
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
     m.r().f.set(RegisterFlags::CY, (a & 0b10000000) != 0);
@@ -222,7 +225,7 @@ pub fn sla(a: u8, m: &mut dyn MemoryController) -> u8 {
 pub fn sra(a: u8, m: &mut dyn MemoryController) -> u8 {
     // Cast as i8 to use arithmetic shift instead of logical shift
     let result = a as i8 >> 1;
-    
+
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
     m.r().f.set(RegisterFlags::CY, (a & 0b00000001) != 0);
@@ -233,7 +236,7 @@ pub fn sra(a: u8, m: &mut dyn MemoryController) -> u8 {
 
 pub fn srl(a: u8, m: &mut dyn MemoryController) -> u8 {
     let result = a >> 1;
-    
+
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
     m.r().f.set(RegisterFlags::CY, (a & 0b00000001) != 0);
@@ -246,7 +249,7 @@ pub fn swap(a: u8, m: &mut dyn MemoryController) -> u8 {
     let lower = a & 0x0F;
     let upper = a & 0xF0;
     let result = (lower << 4) + (upper >> 4);
-    
+
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
     m.r().f.set(RegisterFlags::CY, false);
@@ -258,7 +261,7 @@ pub fn swap(a: u8, m: &mut dyn MemoryController) -> u8 {
 // swap order of parameters to match notation?
 pub fn bit(a: u8, b: u8, m: &mut dyn MemoryController) {
     let target_bit = a & (1 << b);
-    
+
     m.r().f.set(RegisterFlags::H, true);
     m.r().f.set(RegisterFlags::N, false);
     m.r().f.set(RegisterFlags::Z, target_bit == 0);

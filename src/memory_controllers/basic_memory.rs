@@ -1,11 +1,14 @@
-use crate::{constants::ADDRESS_DIV, memory::{MemoryController, Registers}};
+use crate::{
+    constants::ADDRESS_DIV,
+    memory::{MemoryController, Registers},
+};
 
 #[repr(C)]
 pub struct BasicMemory {
     pub r: Registers,
-    rom: Vec<u8>, // 0x0000 - 0x7FFF
+    rom: Vec<u8>,       // 0x0000 - 0x7FFF
     vram: [u8; 0x2000], // 0x8000 - 0x9FFF
-    ram: [u8; 0x2000], // 0xC000 - 0xDFFF
+    ram: [u8; 0x2000],  // 0xC000 - 0xDFFF
     oam: [u8; 0xA0],
     system_mem: [u8; 0x100],
     pub ime: bool,
@@ -36,7 +39,10 @@ impl MemoryController for BasicMemory {
         } else if addr < 0xA000 {
             self.vram[(addr - 0x8000) as usize]
         } else if addr < 0xC000 {
-            panic!("Tried to read cartridge RAM at {:#x} but cartridge has no RAM", addr)
+            panic!(
+                "Tried to read cartridge RAM at {:#x} but cartridge has no RAM",
+                addr
+            )
         } else if addr < 0xE000 {
             self.ram[(addr - 0xC000) as usize]
         } else if addr < 0xFE00 {
@@ -45,7 +51,10 @@ impl MemoryController for BasicMemory {
         } else if addr < 0xFEA0 {
             self.oam[(addr - 0xFE00) as usize]
         } else if addr < 0xFF00 {
-            todo!("Tried to read prohibited space at {:#x}. Hardware behavior not implemented yet.", addr)
+            todo!(
+                "Tried to read prohibited space at {:#x}. Hardware behavior not implemented yet.",
+                addr
+            )
         } else {
             self.system_mem[(addr - 0xFF00) as usize]
         }
@@ -68,7 +77,10 @@ impl MemoryController for BasicMemory {
             }
             self.vram[(addr - 0x8000) as usize] = val;
         } else if addr < 0xC000 {
-            panic!("Tried to write cartridge RAM at {:#x} but cartridge has no RAM", addr)
+            panic!(
+                "Tried to write cartridge RAM at {:#x} but cartridge has no RAM",
+                addr
+            )
         } else if addr < 0xE000 {
             self.ram[(addr - 0xC000) as usize] = val;
         } else if addr < 0xFE00 {
@@ -93,7 +105,10 @@ impl MemoryController for BasicMemory {
         } else if addr < 0xA000 {
             &mut self.vram[(addr - 0x8000) as usize]
         } else if addr < 0xC000 {
-            panic!("Tried to get mutable ref to cartridge RAM at {:#x} but cartridge has no RAM", addr)
+            panic!(
+                "Tried to get mutable ref to cartridge RAM at {:#x} but cartridge has no RAM",
+                addr
+            )
         } else if addr < 0xE000 {
             &mut self.ram[(addr - 0xC000) as usize]
         } else if addr < 0xFE00 {
@@ -103,7 +118,7 @@ impl MemoryController for BasicMemory {
             &mut self.oam[(addr - 0xFE00) as usize]
         } else if addr < 0xFF00 {
             todo!("Tried to get mutable ref to prohibited space at {:#x}. Hardware behavior not implemented yet.", addr)
-        } else  {
+        } else {
             &mut self.system_mem[(addr - 0xFF00) as usize]
         }
     }

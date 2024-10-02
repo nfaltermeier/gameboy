@@ -1,8 +1,19 @@
-use std::{collections::VecDeque, thread, time::{self, Duration, Instant}};
+use std::{
+    collections::VecDeque,
+    thread,
+    time::{self, Duration, Instant},
+};
 
 use morton_encoding::morton_encode;
 
-use crate::{constants::*, lcd::Lcd, memory::MemoryController, memory_controllers::basic_memory::BasicMemory, model::model_render::{OamScanData, PixelRenderData}, opcodes::{process_instruction, u16_to_u8s}};
+use crate::{
+    constants::*,
+    lcd::Lcd,
+    memory::MemoryController,
+    memory_controllers::basic_memory::BasicMemory,
+    model::model_render::{OamScanData, PixelRenderData},
+    opcodes::{process_instruction, u16_to_u8s},
+};
 
 pub async fn boot(rom: Vec<u8>) {
     let mbc_type = rom[0x147];
@@ -11,8 +22,11 @@ pub async fn boot(rom: Vec<u8>) {
     match mbc_type {
         0 => {
             mem = Box::new(BasicMemory::new(rom));
-        },
-        _ => todo!("Need to implement more mbc types. Tried to use: {:#x}", mbc_type)
+        }
+        _ => todo!(
+            "Need to implement more mbc types. Tried to use: {:#x}",
+            mbc_type
+        ),
     }
 
     mem.r().sp = ADDRESS_STACK_START;
@@ -31,7 +45,10 @@ async fn run_loop(mem: &mut dyn MemoryController) {
 
     let mut time_next_ppu = Instant::now();
     let mut dots_left = 1;
-    let mut oam_scan = OamScanData { current_object: 0, objects: VecDeque::new() };
+    let mut oam_scan = OamScanData {
+        current_object: 0,
+        objects: VecDeque::new(),
+    };
     let mut pixel_render = PixelRenderData::new();
     let mut first_dot_after_switch = false;
     let mut lcd = Lcd::new();
@@ -66,7 +83,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                     1 => Duration::from_nanos(3815),
                     2 => Duration::from_nanos(15259),
                     3 => Duration::from_nanos(61035),
-                    _ => panic!("Invalid timer clock select value")
+                    _ => panic!("Invalid timer clock select value"),
                 };
                 time_next_timer = now.checked_add(duration).unwrap();
             }
@@ -99,7 +116,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
 
             if !interrupt_triggered {
                 let cycles = process_instruction(mem);
-    
+
                 wait_cycles(cycles, &mut time_next_instruction, &now);
             }
 
@@ -154,7 +171,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                         // should be 172? Depends on how the delays are added later.
                         dots_left = 160;
                         // + 1 will change mode from 2 to 3
-                        mem.write_8(ADDRESS_STAT, stat + 1); 
+                        mem.write_8(ADDRESS_STAT, stat + 1);
                         first_dot_after_switch = true;
                     }
                 }
@@ -177,7 +194,11 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                             if window_enabled {
                                 todo!("Window not implemented")
                             } else {
-                                let tilemap_address = if (lcdc & LCDC_BG_TILEMAP) != 0 { ADDRESS_TILEMAP_2 } else { ADDRESS_TILEMAP_1 };
+                                let tilemap_address = if (lcdc & LCDC_BG_TILEMAP) != 0 {
+                                    ADDRESS_TILEMAP_2
+                                } else {
+                                    ADDRESS_TILEMAP_1
+                                };
                                 // https://gbdev.io/pandocs/pixel_fifo.html gives this Y coord code. Doesn't seem right at all. Misintepreting the docs?
                                 // let x = ((scx / 8) + pixel_render.tile_x) % 32;
                                 // let y = ly.wrapping_add(scy);
@@ -188,7 +209,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                             }
 
                             let mut tile_data_index = mem.read_8(tiledata_index_address);
-                            let tile_data_address_mode_easy = (lcdc & LCDC_BG_AND_WINDOW_TILEDATA) != 0;
+                            let tile_data_address_mode_easy =
+                                (lcdc & LCDC_BG_AND_WINDOW_TILEDATA) != 0;
                             let tile_data_address = if tile_data_address_mode_easy {
                                 ADDRESS_TILEDATA_1 + tile_data_index as u16 * 16
                             } else {
@@ -230,8 +252,11 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                                 let obj_y = mem.read_8(obj_addr);
                                 let obj_index = mem.read_8(obj_addr + 2);
                                 let obj_attrs = mem.read_8(obj_addr + 3);
-                                let row_in_tile_offset = obj_y + if tall_tiles { 16 } else { 8 } - 16 - ly;
-                                let tile_data_address = ADDRESS_TILEDATA_1 + obj_index as u16 * 16 + row_in_tile_offset as u16 * 2;
+                                let row_in_tile_offset =
+                                    obj_y + if tall_tiles { 16 } else { 8 } - 16 - ly;
+                                let tile_data_address = ADDRESS_TILEDATA_1
+                                    + obj_index as u16 * 16
+                                    + row_in_tile_offset as u16 * 2;
 
                                 // todo: check x and y flip
                                 let tile_low = mem.read_8(tile_data_address);
@@ -245,11 +270,13 @@ async fn run_loop(mem: &mut dyn MemoryController) {
 
                                 let priority_data = if (obj_attrs & 1 << 7) != 0 { 4 } else { 0 };
                                 for i in 0..8 {
-                                    let pixel = ((all_pixel_data & 0xC000) >> 14) as u8 | priority_data;
+                                    let pixel =
+                                        ((all_pixel_data & 0xC000) >> 14) as u8 | priority_data;
 
                                     if i < obj_queue_len {
                                         // pixel in queue is transparent or behind bg
-                                        if queue_contents[i] & 3 == 0 || queue_contents[i] & 4 != 0 {
+                                        if queue_contents[i] & 3 == 0 || queue_contents[i] & 4 != 0
+                                        {
                                             queue_contents[i] = pixel;
                                         }
                                     } else {
@@ -276,11 +303,11 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                                 } else {
                                     lcd.draw_pixel(pixel_render.x, ly, obj_color);
                                 }
-                            },
+                            }
                             (Some(bgv), None) => {
                                 let bg_color = if bg_disabled { 0 } else { bgv };
                                 lcd.draw_pixel(pixel_render.x, ly, bg_color);
-                            },
+                            }
                             (None, Some(objv)) => {
                                 let obj_low_priority = objv & 4 != 0;
                                 let obj_color = objv & 3;
@@ -288,8 +315,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                                 if obj_color != 0 && !obj_low_priority {
                                     lcd.draw_pixel(pixel_render.x, ly, obj_color);
                                 }
-                            },
-                            _ => { }
+                            }
+                            _ => {}
                         }
 
                         pixel_render.x += 1;
@@ -344,7 +371,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                         }
                     }
                 }
-                _ => panic!("Invalid ppu_mode")
+                _ => panic!("Invalid ppu_mode"),
             }
 
             // get the latest values
@@ -417,7 +444,12 @@ mod tests {
     #[case(143, 154, 16, true)]
     #[case(143, 160, 8, false)]
     #[case(143, 160, 16, false)]
-    fn obj_on_screen_test(#[case] ly: u8, #[case] obj_y: u8, #[case] obj_height: u8, #[case] expected_result: bool) {
+    fn obj_on_screen_test(
+        #[case] ly: u8,
+        #[case] obj_y: u8,
+        #[case] obj_height: u8,
+        #[case] expected_result: bool,
+    ) {
         let result = obj_on_screen(ly, obj_y, obj_height);
         assert_eq!(expected_result, result);
     }

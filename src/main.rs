@@ -6,10 +6,10 @@ mod debug;
 mod lcd;
 mod memory;
 mod memory_controllers;
+mod model;
 mod opcodes;
 mod operations;
 mod system;
-mod model;
 
 use std::{env, fs};
 
@@ -43,7 +43,7 @@ async fn main() {
     if args.len() > 1 {
         match fs::read(&args[1]) {
             Ok(data) => rom = data,
-            Err(err) => panic!("Failed reading rom file: {}", err)
+            Err(err) => panic!("Failed reading rom file: {}", err),
         };
     } else {
         panic!("You must specify a rom path in the first argument")

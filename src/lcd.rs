@@ -15,7 +15,7 @@ impl Lcd {
     pub fn new() -> Self {
         let mut lcd = Lcd {
             image: Image::gen_image_color(SCREEN_WIDTH, SCREEN_HEIGHT, WHITE),
-            texture: Texture2D::empty()
+            texture: Texture2D::empty(),
         };
         lcd.texture = Texture2D::from_image(&lcd.image);
         lcd
@@ -24,7 +24,7 @@ impl Lcd {
     pub fn start_new_frame(&mut self) {
         clear_background(WHITE);
     }
-    
+
     pub fn draw_pixel(&mut self, x: u8, y: u8, color: u8) {
         let show_color = match color {
             0 => WHITE,
@@ -36,7 +36,7 @@ impl Lcd {
 
         self.image.set_pixel(x.into(), y.into(), show_color);
     }
-    
+
     pub async fn show_frame(&mut self) {
         self.texture.update(&self.image);
         draw_texture(&self.texture, 0., 0., WHITE);
