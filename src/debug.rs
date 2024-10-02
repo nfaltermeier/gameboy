@@ -9,6 +9,11 @@ pub const DEBUG_PRINT_INTERRUPTS: bool = false;
 pub const DEBUG_PRINT_WHEN_PC: u16 = 0x28;
 pub const DEBUG_PRINT_WHEN_PC_TIMES: u8 = 10;
 
+pub trait GenericWatch {
+    fn test(&mut self, mem: &dyn MemoryController) -> bool;
+    fn name(&self) -> &str;
+}
+
 pub enum WatchType {
     Rising,
     Constant,
@@ -19,10 +24,10 @@ pub struct WatchValue<T>
 where
     T: PartialEq,
 {
-    pub name: &'static str,
+    name: &'static str,
     target_val: T,
     last_val: Option<T>,
-    eval_fn: fn(&dyn MemoryController) -> T,
+    eval_fn: Box<dyn Fn(&dyn MemoryController) -> T>,
     watch_type: WatchType,
 }
 
@@ -33,7 +38,7 @@ where
     pub fn new(
         name: &'static str,
         target_val: T,
-        eval_fn: fn(&dyn MemoryController) -> T,
+        eval_fn: Box<dyn Fn(&dyn MemoryController) -> T>,
         watch_type: WatchType,
     ) -> Self {
         WatchValue {
@@ -44,9 +49,11 @@ where
             watch_type,
         }
     }
+}
 
-    pub fn test(&mut self, mem: &dyn MemoryController) -> bool {
-        let val = (self.eval_fn)(mem);
+impl<T> GenericWatch for WatchValue<T> where T : PartialEq{
+    fn test(&mut self, mem: &dyn MemoryController) -> bool {
+        let val: T = (self.eval_fn)(mem);
         let trigger = match self.watch_type {
             WatchType::Rising => {
                 let last_triggers = match &self.last_val {
@@ -67,5 +74,9 @@ where
 
         self.last_val = Some(val);
         trigger
+    }
+    
+    fn name(&self) -> &str {
+        &self.name
     }
 }

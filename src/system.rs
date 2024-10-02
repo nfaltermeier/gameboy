@@ -8,7 +8,7 @@ use morton_encoding::morton_encode;
 
 use crate::{
     constants::*,
-    debug::{WatchType, WatchValue},
+    debug::{GenericWatch, WatchType, WatchValue},
     lcd::Lcd,
     memory::MemoryController,
     memory_controllers::basic_memory::BasicMemory,
@@ -39,13 +39,21 @@ pub async fn boot(rom: Vec<u8>) {
     run_loop(&mut *mem).await;
 }
 
-fn create_watches() -> Vec<Box<WatchValue<u16>>> {
-    vec![Box::new(WatchValue::new(
-        "de set to 0x9303",
-        0x9303,
-        |mem: &dyn MemoryController| mem.r_i().de.r16(),
-        WatchType::Rising,
-    ))]
+fn create_watches() -> Vec<Box<dyn GenericWatch>> {
+    vec![
+        Box::new(WatchValue::new(
+            "de set to 0x9303",
+            0x9303,
+            Box::from(|mem: &dyn MemoryController| mem.r_i().de.r16()),
+            WatchType::Rising,
+        )),
+        Box::new(WatchValue::new(
+            "d set to 0x93",
+            0x93,
+            Box::from(|mem: &dyn MemoryController| mem.r_i().de.ind.0),
+            WatchType::Rising,
+        )),
+    ]
 }
 
 async fn run_loop(mem: &mut dyn MemoryController) {
@@ -153,7 +161,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                 for watch in &mut watches {
                     if watch.test(mem) {
                         let current_instruction = mem.read_8(pc);
-                        println!("{} triggered after process_instruction. Instruction that triggered pc: {:#x}, ins: {:#b}.", watch.name, pc, current_instruction);
+                        println!("{} triggered after process_instruction. Instruction that triggered pc: {:#x}, ins: {:#b}.", watch.name(), pc, current_instruction);
                         println!("Register state after watch triggered: {:?}", mem.r_i());
                     }
                 }
