@@ -23,6 +23,7 @@ fn u16_to_u8s(d: u16) -> (u8, u8) {
 
 #[repr(C)]
 #[derive(Debug)]
+#[derive(Default)]
 pub struct RegisterPair {
     pub ind: (u8, u8),
 }
@@ -51,12 +52,6 @@ impl RegisterPair {
         if result.1 {
             self.ind.0 = self.ind.0.wrapping_sub(1);
         }
-    }
-}
-
-impl Default for RegisterPair {
-    fn default() -> Self {
-        RegisterPair { ind: (0, 0) }
     }
 }
 

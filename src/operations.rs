@@ -171,7 +171,7 @@ pub fn rrc(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
     }
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
-    m.r().f.set(RegisterFlags::CY, (a & 0) != 0);
+    m.r().f.set(RegisterFlags::CY, (a & 1) != 0);
 
     a.rotate_right(1)
 }
@@ -203,7 +203,7 @@ pub fn rr(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
     }
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
-    m.r().f.set(RegisterFlags::CY, (a & 0) != 0);
+    m.r().f.set(RegisterFlags::CY, (a & 1) != 0);
 
     result
 }
@@ -270,7 +270,7 @@ pub fn set(a: u8, b: u8) -> u8 {
     if b == 0 {
         a
     } else {
-        a | (1 << b - 1)
+        a | (1 << (b - 1))
     }
 }
 

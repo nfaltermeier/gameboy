@@ -2,7 +2,7 @@ use std::{collections::VecDeque, thread, time::{self, Duration, Instant}};
 
 use morton_encoding::morton_encode;
 
-use crate::{constants::*, lcd::LCD, memory::MemoryController, memory_controllers::basic_memory::BasicMemory, model::model_render::{OamScanData, PixelRenderData}, opcodes::{process_instruction, u16_to_u8s}};
+use crate::{constants::*, lcd::Lcd, memory::MemoryController, memory_controllers::basic_memory::BasicMemory, model::model_render::{OamScanData, PixelRenderData}, opcodes::{process_instruction, u16_to_u8s}};
 
 pub async fn boot(rom: Vec<u8>) {
     let mbc_type = rom[0x147];
@@ -34,7 +34,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
     let mut oam_scan = OamScanData { current_object: 0, objects: VecDeque::new() };
     let mut pixel_render = PixelRenderData::new();
     let mut first_dot_after_switch = false;
-    let mut lcd = LCD::new();
+    let mut lcd = Lcd::new();
     let mut last_stat_interrupt_state = false;
 
     let mut time_next_div = Instant::now();
@@ -189,9 +189,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
 
                             let mut tile_data_index = mem.read_8(tiledata_index_address);
                             let tile_data_address_mode_easy = (lcdc & LCDC_BG_AND_WINDOW_TILEDATA) != 0;
-                            let tile_data_address: u16;
-                            if tile_data_address_mode_easy {
-                                tile_data_address = ADDRESS_TILEDATA_1 + tile_data_index as u16 * 16;
+                            let tile_data_address = if tile_data_address_mode_easy {
+                                ADDRESS_TILEDATA_1 + tile_data_index as u16 * 16
                             } else {
                                 if tile_data_index > 127 {
                                     tile_data_index -= 128;
@@ -201,8 +200,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
 
                                 // ADDRESS_TILEDATA_2 should be 0x8800 not 0x9000 like documentation will give because
                                 // this code is not using signed numbers for the index.
-                                tile_data_address = ADDRESS_TILEDATA_2 + tile_data_index as u16 * 16;
-                            }
+                                ADDRESS_TILEDATA_2 + tile_data_index as u16 * 16
+                            };
 
                             let tile_low = mem.read_8(tile_data_address);
                             let tile_high = mem.read_8(tile_data_address + 1);
@@ -212,11 +211,11 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                             for _i in 0..8 {
                                 let pixel = ((all_pixel_data & 0xC000) >> 14) as u8;
                                 pixel_render.background_queue.push_back(pixel);
-                                all_pixel_data = all_pixel_data << 2;
+                                all_pixel_data <<= 2;
                             }
                         }
 
-                        if oam_scan.objects.len() > 0 {
+                        if !oam_scan.objects.is_empty() {
                             let obj_addr = *oam_scan.objects.front().unwrap();
                             let obj_x = mem.read_8(obj_addr + 1);
 
@@ -257,7 +256,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                                         pixel_render.background_queue.push_back(pixel);
                                     }
 
-                                    all_pixel_data = all_pixel_data << 2;
+                                    all_pixel_data <<= 2;
                                 }
                             }
                         }

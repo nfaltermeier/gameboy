@@ -5,15 +5,15 @@ use macroquad::prelude::*;
 pub const SCREEN_WIDTH: u16 = 160;
 pub const SCREEN_HEIGHT: u16 = 144;
 
-pub struct LCD {
+pub struct Lcd {
     image: Image,
     texture: Texture2D,
 }
 
 // ref: https://github.com/not-fl3/macroquad/blob/master/examples/life.rs
-impl LCD {
+impl Lcd {
     pub fn new() -> Self {
-        let mut lcd = LCD {
+        let mut lcd = Lcd {
             image: Image::gen_image_color(SCREEN_WIDTH, SCREEN_HEIGHT, WHITE),
             texture: Texture2D::empty()
         };

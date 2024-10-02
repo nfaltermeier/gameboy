@@ -64,8 +64,7 @@ fn write_register_pair_by_code(mem: &mut dyn MemoryController, code: u8, val: u1
 }
 
 pub fn u8s_to_u16(h: u8, l: u8) -> u16 {
-    let val =  ((h as u16) << 8) | l as u16;
-    val
+    ((h as u16) << 8) | l as u16
 }
 
 pub fn u16_to_u8s(d: u16) -> (u8, u8) {
@@ -162,7 +161,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
             }
             cycles += 2;
-            todo!("Check if this actually works properly")
+            todo!("Check if this JR e actually works properly. PC: {:#x}", starting_pc)
         }
         "00_011_010" => {
             // LD A (DE)
