@@ -296,6 +296,4 @@ pub fn ret(mem: &mut dyn MemoryController) {
     let addr = u8s_to_u16(mem.read_8(mem.r_i().sp + 1), mem.read_8(mem.r_i().sp));
     mem.r().pc = addr;
     mem.r().sp += 2;
-
-    todo!("Check if RET actually works properly");
 }

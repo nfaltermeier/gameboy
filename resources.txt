@@ -8,3 +8,6 @@ https://gbdev.io/pandocs
 
 Testing
 https://github.com/retrio/gb-test-roms
+
+View ROM data (starting from byte 173, output 10 bytes)
+od -A x -t x1 -j 0x173 -N 10 Tetris.gb

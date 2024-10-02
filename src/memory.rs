@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{format, Debug};
 
 use bitflags::bitflags;
 
@@ -22,7 +22,7 @@ fn u16_to_u8s(d: u16) -> (u8, u8) {
 }
 
 #[repr(C)]
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct RegisterPair {
     pub ind: (u8, u8),
 }
@@ -54,8 +54,16 @@ impl RegisterPair {
     }
 }
 
+impl Debug for RegisterPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RegisterPair")
+            .field("ind", &format!("({:#x}, {:#x})", self.ind.0, self.ind.1))
+            .finish()
+    }
+}
+
 #[repr(C)]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Registers {
     pub a: u8,
     pub f: RegisterFlags,
@@ -71,6 +79,20 @@ impl Registers {
         unsafe {
             self.f = RegisterFlags::from_bits_unchecked(data);
         }
+    }
+}
+
+impl Debug for Registers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Registers")
+            .field("a", &format!("{:#x}", self.a))
+            .field("f", &self.f)
+            .field("bc", &self.bc)
+            .field("de", &self.de)
+            .field("hl", &self.hl)
+            .field("pc", &format!("{:#x}", self.pc))
+            .field("sp", &format!("{:#x}", self.sp))
+            .finish()
     }
 }
 

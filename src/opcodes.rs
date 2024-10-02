@@ -107,9 +107,9 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
     //     }
     // }
 
-    if starting_pc == 0x2795 {
+    if starting_pc == 0x27a3 {
         unsafe {
-            DEBUG_PRINT_COUNT = 20;
+            DEBUG_PRINT_COUNT = 0;
         }
     }
 
@@ -622,7 +622,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             mem.r().pc += 1;
             cycles += 3;
         }
-        "11_101_01" => {
+        "11_101_001" => {
             // JP HL
             let addr = mem.r().hl.r16();
             mem.r().pc = addr;
@@ -751,7 +751,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
 
             mem.r().pc = t as u16 * 0x08;
         }
-        "11_01_0011" => {
+        "11_010_011" => {
             panic!("Invalid instruction {:#b}", current_instruction);
         }
         "11_011_011" => {
