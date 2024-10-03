@@ -3,6 +3,8 @@ use crate::memory::MemoryController;
 // probably bad for performance
 pub const DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION: bool = true;
 
+pub const DEBUG_SHOW_FPS: bool = false;
+
 pub const DEBUG_PRINT_PC: bool = false;
 pub const DEBUG_PRINT_PPU: bool = false;
 pub const DEBUG_PRINT_FRAME_TIME: bool = false;

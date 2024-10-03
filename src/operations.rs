@@ -156,10 +156,11 @@ pub fn add_sp_e(e: u8, m: &mut dyn MemoryController) {
     m.r().f.set(RegisterFlags::N, false);
 }
 
-pub fn rlc(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
-    todo!("Verify a_instruction behavior");
-    if !a_instruction {
+pub fn rlc(a: u8, m: &mut dyn MemoryController, rlca: bool) -> u8 {
+    if rlca {
         m.r().f.set(RegisterFlags::Z, false);
+    } else {
+        m.r().f.set(RegisterFlags::Z, a == 0);
     }
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
@@ -168,9 +169,11 @@ pub fn rlc(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
     a.rotate_left(1)
 }
 
-pub fn rrc(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
-    if !a_instruction {
+pub fn rrc(a: u8, m: &mut dyn MemoryController, rrca: bool) -> u8 {
+    if rrca {
         m.r().f.set(RegisterFlags::Z, false);
+    } else {
+        m.r().f.set(RegisterFlags::Z, a == 0);
     }
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
@@ -179,14 +182,16 @@ pub fn rrc(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
     a.rotate_right(1)
 }
 
-pub fn rl(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
+pub fn rl(a: u8, m: &mut dyn MemoryController, rla: bool) -> u8 {
     let mut result = a << 1;
     if m.r().f.intersects(RegisterFlags::CY) {
         result |= 1;
     }
 
-    if !a_instruction {
+    if rla {
         m.r().f.set(RegisterFlags::Z, false);
+    } else {
+        m.r().f.set(RegisterFlags::Z, result == 0);
     }
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);
@@ -195,14 +200,16 @@ pub fn rl(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
     result
 }
 
-pub fn rr(a: u8, m: &mut dyn MemoryController, a_instruction: bool) -> u8 {
+pub fn rr(a: u8, m: &mut dyn MemoryController, rra: bool) -> u8 {
     let mut result = a >> 1;
     if m.r().f.intersects(RegisterFlags::CY) {
         result |= 0x80;
     }
 
-    if !a_instruction {
+    if rra {
         m.r().f.set(RegisterFlags::Z, false);
+    } else {
+        m.r().f.set(RegisterFlags::Z, result == 0);
     }
     m.r().f.set(RegisterFlags::H, false);
     m.r().f.set(RegisterFlags::N, false);

@@ -456,7 +456,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             match next_instruction {
                 "00_000_rrr" => {
                     // RLC r, RLC (HL)
-                    let result = rlc(get_register_val_code(mem, r), mem, true);
+                    let result = rlc(get_register_val_code(mem, r), mem, false);
                     *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
@@ -465,7 +465,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_001_rrr" => {
                     // RRC r, RRC (HL)
-                    let result = rrc(get_register_val_code(mem, r), mem, true);
+                    let result = rrc(get_register_val_code(mem, r), mem, false);
                     *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
@@ -474,7 +474,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_010_rrr" => {
                     // RL r, RL (HL)
-                    let result = rl(get_register_val_code(mem, r), mem, true);
+                    let result = rl(get_register_val_code(mem, r), mem, false);
                     *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {
@@ -483,7 +483,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
                 }
                 "00_011_rrr" => {
                     // RR r, RR (HL)
-                    let result = rr(get_register_val_code(mem, r), mem, true);
+                    let result = rr(get_register_val_code(mem, r), mem, false);
                     *get_register_mut_by_code(mem, r) = result;
 
                     if r == 0b00000110 {

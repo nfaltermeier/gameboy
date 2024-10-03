@@ -8,7 +8,7 @@ use morton_encoding::morton_encode;
 
 use crate::{
     constants::*,
-    debug::{Watch, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
+    debug::{Watch, WatchType, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
     lcd::Lcd,
     memory::MemoryController,
     memory_controllers::basic_memory::BasicMemory,
