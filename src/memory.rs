@@ -2,6 +2,8 @@ use std::fmt::{format, Debug};
 
 use bitflags::bitflags;
 
+use crate::constants::*;
+
 bitflags! {
     #[repr(C)]
     #[derive(Default)]
@@ -109,7 +111,30 @@ pub trait MemoryController {
     fn shared_data_mut(&mut self) -> &mut MemorySharedData;
     fn read_8(&self, addr: u16) -> u8;
     fn read_8_sys(&self, addr: u16) -> u8;
-    fn write_8(&mut self, addr: u16, val: u8);
+
+    fn write_8(&mut self, addr: u16, mut val: u8) {
+        match addr {
+            ADDRESS_DIV => {
+                val = 0;
+            },
+            ADDRESS_STAT => {
+                let stat = self.read_8_sys(ADDRESS_STAT);
+                // Bits 0, 1, and 2 are read-only for the CPU
+                val = (val & !7) | (stat & 7);
+            },
+            ADDRESS_LY => {
+                // LY is read-only
+                return;
+            },
+            ADDRESS_DMA_CONTROL => {
+                self.shared_data_mut().dma_source_address = val as u16 * 0x100;
+            },
+            _ => {},
+        }
+
+        self.write_8_sys(addr, val);
+    }
+    
     fn write_8_sys(&mut self, addr: u16, val: u8);
     // remove?
     fn mut_8(&mut self, addr: u16) -> &mut u8;

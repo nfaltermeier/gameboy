@@ -8,11 +8,11 @@ use morton_encoding::morton_encode;
 
 use crate::{
     constants::*,
-    debug::{Watch, WatchType, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
+    debug::{Watch, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
     lcd::Lcd,
     memory::MemoryController,
     memory_controllers::basic_memory::BasicMemory,
-    model::model_render::{OamScanData, PixelRenderData},
+    model::model_render::{OamScanData, PixelRenderData, PpuData},
     opcodes::{process_instruction, u16_to_u8s},
 };
 
@@ -42,8 +42,13 @@ pub async fn boot(rom: Vec<u8>) {
 fn create_watches() -> Vec<Watch> {
     vec![
         // Watch::new(
-        //     "de set to 0x9303",
-        //     Box::from(|mem: &dyn MemoryController| mem.r_i().de.r16() == 0x9303),
+        //     "Invalid STAT ppu_mode and LY combination",
+        //     Box::from(|mem: &dyn MemoryController| {
+        //         let ly = mem.read_8_sys(ADDRESS_LY);
+        //         let stat = mem.read_8_sys(ADDRESS_STAT);
+        //         let ppu_mode = stat & 0b00000011;
+        //         (ly >= 144 && ppu_mode != 1) || (ly < 144 && ppu_mode == 1)
+        //     }),
         //     WatchType::Rising,
         // ),
     ]
@@ -65,6 +70,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
     let mut first_dot_after_switch = false;
     let mut lcd = Lcd::new();
     let mut last_stat_interrupt_state = false;
+    let mut ppu_data: VecDeque<PpuData> = VecDeque::new();
 
     let mut time_next_div = Instant::now();
 
@@ -190,6 +196,12 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                 println!("ppu_mode: {}", ppu_mode);
             }
 
+            let ly = mem.read_8(ADDRESS_LY);
+            if ppu_data.len() >= 600 {
+                ppu_data.pop_front();
+            }
+            ppu_data.push_back(PpuData { mode: ppu_mode, dots_left, ly });
+
             match ppu_mode {
                 PPU_MODE_OAM_SCAN => {
                     if first_dot_after_switch {
@@ -216,7 +228,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                         // should be 172? Depends on how the delays are added later.
                         dots_left = 160;
                         // + 1 will change mode from 2 to 3
-                        mem.write_8(ADDRESS_STAT, stat + 1);
+                        mem.write_8_sys(ADDRESS_STAT, stat + 1);
                         first_dot_after_switch = true;
                     }
                 }
@@ -228,6 +240,11 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                     if pixel_render.x < 160 {
                         let lcdc = mem.read_8(ADDRESS_LCDC);
                         let ly = mem.read_8(ADDRESS_LY);
+
+                        if ly >= 144 {
+                            println!("ly is {} in PPU_MODE_RENDER_PIXEL. PPU data: {:?}", ly, ppu_data);
+                            panic!("ly is {} in PPU_MODE_RENDER_PIXEL", ly)
+                        }
                         // todo: use palettes
                         if !pixel_render.background_queue.len() >= 8 {
                             let scx = mem.read_8(ADDRESS_SCX);
@@ -371,7 +388,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                         // transition to horiz blank
                         dots_left = 216;
                         // - 3 will change mode from 3 to 0
-                        mem.write_8(ADDRESS_STAT, stat - 3);
+                        mem.write_8_sys(ADDRESS_STAT, stat - 3);
                         first_dot_after_switch = true;
                     }
                 }
@@ -382,16 +399,16 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                             // transition to vertical blank
                             dots_left = 456;
                             // + 1 will change mode from 0 to 1
-                            mem.write_8(ADDRESS_STAT, stat + 1);
+                            mem.write_8_sys(ADDRESS_STAT, stat + 1);
                             mem.write_8_sys(ADDRESS_IF, mem.read_8_sys(ADDRESS_IF) | 1);
                         } else {
                             // transition to OAM scan
                             dots_left = 80;
                             // + 2 will change mode from 0 to 2
-                            mem.write_8(ADDRESS_STAT, stat + 2);
+                            mem.write_8_sys(ADDRESS_STAT, stat + 2);
                         }
 
-                        mem.write_8(ADDRESS_LY, ly + 1);
+                        mem.write_8_sys(ADDRESS_LY, ly + 1);
                         first_dot_after_switch = true;
                     }
                 }
@@ -406,13 +423,13 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                             // transition to OAM scan
                             dots_left = 80;
                             // + 1 will change mode from 1 to 2
-                            mem.write_8(ADDRESS_STAT, stat + 1);
-                            mem.write_8(ADDRESS_LY, 0);
+                            mem.write_8_sys(ADDRESS_STAT, stat + 1);
+                            mem.write_8_sys(ADDRESS_LY, 0);
                             first_dot_after_switch = true;
                             lcd.start_new_frame();
                         } else {
                             dots_left = 456;
-                            mem.write_8(ADDRESS_LY, ly + 1);
+                            mem.write_8_sys(ADDRESS_LY, ly + 1);
                         }
                     }
                 }

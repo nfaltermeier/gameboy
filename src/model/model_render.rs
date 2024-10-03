@@ -29,3 +29,11 @@ impl PixelRenderData {
         self.tile_x = 0;
     }
 }
+
+#[derive(Debug)]
+pub struct PpuData
+{
+    pub mode: u8,
+    pub dots_left: i32,
+    pub ly: u8
+}

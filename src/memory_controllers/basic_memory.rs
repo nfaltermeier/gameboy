@@ -66,16 +66,6 @@ impl MemoryController for BasicMemory {
         }
     }
 
-    fn write_8(&mut self, addr: u16, mut val: u8) {
-        if addr == ADDRESS_DIV {
-            val = 0;
-        } else if addr == ADDRESS_DMA_CONTROL {
-            self.shared_data_mut().dma_source_address = val as u16 * 0x100;
-        }
-
-        self.write_8_sys(addr, val);
-    }
-
     fn write_8_sys(&mut self, addr: u16, val: u8) {
         if addr < 0x8000 {
             // writing to ROM is skipped
