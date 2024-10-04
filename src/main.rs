@@ -35,10 +35,11 @@ async fn main() {
      * serial communication?
      * system startup pg 23, 127
      * persistent saves
-     * 
+     *
      * Maybe todo
      * use a manual clock instead of directly using Instants in system loop to keep
-     * CPU and PPU in sync instead of being non-deterministic?
+     *   CPU and PPU in sync instead of being non-deterministic?
+     * Separate UI thread
      */
 
     let args: Vec<String> = env::args().collect();

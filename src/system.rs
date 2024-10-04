@@ -8,7 +8,7 @@ use morton_encoding::morton_encode;
 
 use crate::{
     constants::*,
-    debug::{Watch, WatchType, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
+    debug::{DebugConsole, Watch, WatchType, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
     lcd::Lcd,
     memory::MemoryController,
     memory_controllers::basic_memory::BasicMemory,
@@ -42,13 +42,8 @@ pub async fn boot(rom: Vec<u8>) {
 fn create_watches() -> Vec<Watch> {
     vec![
         // Watch::new(
-        //     "Invalid STAT ppu_mode and LY combination",
-        //     Box::from(|mem: &dyn MemoryController| {
-        //         let ly = mem.read_8_sys(ADDRESS_LY);
-        //         let stat = mem.read_8_sys(ADDRESS_STAT);
-        //         let ppu_mode = stat & 0b00000011;
-        //         (ly >= 144 && ppu_mode != 1) || (ly < 144 && ppu_mode == 1)
-        //     }),
+        //     "sp cfff",
+        //     Box::from(|mem: &dyn MemoryController| mem.r_i().sp == 0xcfff),
         //     WatchType::Rising,
         // ),
     ]
@@ -75,6 +70,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
     let mut time_next_div = Instant::now();
 
     let mut time_next_timer = Instant::now();
+
+    let mut debug_console = DebugConsole::new();
 
     loop {
         let now = Instant::now();
@@ -108,6 +105,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
         }
 
         if now >= time_next_instruction {
+            debug_console.run(mem);
+
             if ime_actually_enabled {
                 // Check interrupts
                 let interrupt_requests = mem.read_8(ADDRESS_IF);
