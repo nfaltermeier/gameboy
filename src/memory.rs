@@ -59,7 +59,7 @@ impl RegisterPair {
 impl Debug for RegisterPair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RegisterPair")
-            .field("ind", &format!("({:#x}, {:#x})", self.ind.0, self.ind.1))
+            .field("ind", &format!("({:#04x}, {:#04x})", self.ind.0, self.ind.1))
             .finish()
     }
 }
@@ -87,17 +87,16 @@ impl Registers {
 impl Debug for Registers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Registers")
-            .field("a", &format!("{:#x}", self.a))
+            .field("a", &format!("{:#04x}", self.a))
             .field("f", &self.f)
             .field("bc", &self.bc)
             .field("de", &self.de)
             .field("hl", &self.hl)
-            .field("pc", &format!("{:#x}", self.pc))
-            .field("sp", &format!("{:#x}", self.sp))
+            .field("pc", &format!("{:#06x}", self.pc))
+            .field("sp", &format!("{:#06x}", self.sp))
             .finish()
     }
 }
-
 #[derive(Default)]
 pub struct MemorySharedData {
     pub r: Registers,
