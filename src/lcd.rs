@@ -45,11 +45,11 @@ impl Lcd {
         self.texture.update(&self.image);
         draw_texture(&self.texture, 0., 0., WHITE);
 
-        if crate::debug::DEBUG_PRINT_FRAME_TIME {
+        if crate::debug::flags::DEBUG_PRINT_FRAME_TIME {
             println!("Showing frame at {:?}", Instant::now());
         }
 
-        if crate::debug::DEBUG_SHOW_FPS {
+        if crate::debug::flags::DEBUG_SHOW_FPS {
             let now = Instant::now();
             loop {
                 match self.frame_times.front() {

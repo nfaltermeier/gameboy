@@ -70,7 +70,7 @@ impl MemoryController for BasicMemory {
         if addr < 0x8000 {
             // writing to ROM is skipped
         } else if addr < 0xA000 {
-            if crate::debug::DEBUG_PRINT_VRAM_WRITES {
+            if crate::debug::flags::DEBUG_PRINT_VRAM_WRITES {
                 println!("Writing {:#b} to VRAM {:#x}", val, addr);
             }
             self.vram[(addr - 0x8000) as usize] = val;

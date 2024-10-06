@@ -1,6 +1,7 @@
 use bitmatch::bitmatch;
 
-use crate::debug::{DEBUG_PRINT_WHEN_PC, DEBUG_PRINT_WHEN_PC_TIMES};
+use crate::debug::flags::{DEBUG_PRINT_WHEN_PC, DEBUG_PRINT_WHEN_PC_TIMES, DEBUG_TRACK_JUMPS};
+use crate::debug::metrics::DebugMetrics;
 use crate::memory::{MemoryController, RegisterFlags};
 use crate::operations::*;
 
@@ -79,15 +80,25 @@ fn check_jump_condition(cc: u8, mem: &dyn MemoryController) -> bool {
         || (cc == 0b00000011 && mem.r_i().f.contains(RegisterFlags::CY))
 }
 
+fn name_jump_condition(cc: u8) -> &'static str {
+    match cc {
+        0 => "NZ",
+        1 => "Z",
+        2 => "NCY",
+        3 => "CY",
+        _ => panic!("Invalid jump condition"),
+    }
+}
+
 static mut DEBUG_PRINTED: bool = false;
 static mut DEBUG_PRINT_COUNT: u8 = 0;
 
 #[bitmatch]
-pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
+pub fn process_instruction(mem: &mut dyn MemoryController, metrics: &mut DebugMetrics) -> u64 {
     let mut cycles = 0;
     let starting_pc = mem.r_i().pc;
     let current_instruction = mem.read_8(starting_pc);
-    if crate::debug::DEBUG_PRINT_PC {
+    if crate::debug::flags::DEBUG_PRINT_PC {
         println!("pc: {:#x}", starting_pc);
         println!("ins: {:#b}", current_instruction);
     }
@@ -158,7 +169,11 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             match result {
                 None => panic!("JR over/underflowed, not sure how this should behave"),
                 Some(v) => {
-                    mem.r().pc = v + 1;
+                    let target = v + 1;
+                    mem.r().pc = target;
+                    if DEBUG_TRACK_JUMPS {
+                        metrics.jump_not_conditional(starting_pc, target, "JR");
+                    }
                 }
             }
             cycles += 2;
@@ -208,15 +223,22 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "00_1cc_000" => {
             // JR cc, e
-            if check_jump_condition(c, mem) {
-                let e = mem.read_8(mem.r_i().pc) as i8;
-                let result = mem.r().pc.checked_add_signed(e.into());
-                match result {
-                    None => panic!("JR over/underflowed, not sure how this should behave"),
-                    Some(v) => {
-                        mem.r().pc = v + 1;
-                    }
+            let e = mem.read_8(mem.r_i().pc) as i8;
+            let result = mem.r().pc.checked_add_signed(e.into());
+            let target = match result {
+                None => panic!("JR over/underflowed, not sure how this should behave"),
+                Some(v) => {
+                    v + 1
                 }
+            };
+            let condition_met = check_jump_condition(c, mem);
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_conditional(starting_pc, target, "JR", name_jump_condition(c), condition_met);
+            }
+
+            if condition_met {
+                mem.r().pc = target;
                 cycles += 2;
             } else {
                 mem.r().pc += 1;
@@ -419,13 +441,24 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         "11_000_011" => {
             // JP nn
             let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_not_conditional(starting_pc, addr, "JP");
+            }
+
             mem.r().pc = addr;
             cycles += 3;
         }
         "11_0cc_010" => {
             // JP cc, nn
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
+            let condition_met = check_jump_condition(c, mem);
+            
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_conditional(starting_pc, addr, "JP", name_jump_condition(c), condition_met);
+            }
+
             if check_jump_condition(c, mem) {
-                let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
                 mem.r().pc = addr;
                 cycles += 3;
             } else {
@@ -442,7 +475,14 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "11_001_001" => {
             // RET
-            ret(mem);
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().sp + 1), mem.read_8(mem.r_i().sp));
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_not_conditional(starting_pc, addr, "RET");
+            }
+
+            mem.r().pc = addr;
+            mem.r().sp += 2;
             cycles += 3;
         }
         "11_001_011" => {
@@ -556,7 +596,18 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "11_001_101" => {
             // CALL nn
-            call(mem);
+            let vals = u16_to_u8s(mem.r().pc + 2);
+            mem.write_8(mem.r_i().sp - 1, vals.0);
+            mem.write_8(mem.r_i().sp - 2, vals.1);
+            mem.r().sp -= 2;
+
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
+            mem.r().pc = addr;
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_not_conditional(starting_pc, addr, "CALL");
+            }
+
             cycles += 5;
         }
         "11_001_110" => {
@@ -589,8 +640,16 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "11_0cc_000" => {
             // RET cc
-            if check_jump_condition(c, mem) {
-                ret(mem);
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().sp + 1), mem.read_8(mem.r_i().sp));
+            let condition_met = check_jump_condition(c, mem);
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_conditional(starting_pc, addr, "RET", name_jump_condition(c), condition_met);
+            }
+
+            if condition_met {
+                mem.r().pc = addr;
+                mem.r().sp += 2;
                 cycles += 4;
             } else {
                 cycles += 1;
@@ -598,14 +657,33 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         }
         "11_011_001" => {
             // RETI
-            ret(mem);
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().sp + 1), mem.read_8(mem.r_i().sp));
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_not_conditional(starting_pc, addr, "RETI");
+            }
+
+            mem.r().pc = addr;
+            mem.r().sp += 2;
             *mem.ime() = true;
             cycles += 3;
         }
         "11_0cc_100" => {
             // CALL cc, nn
-            if check_jump_condition(c, mem) {
-                call(mem);
+            let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
+            let condition_met = check_jump_condition(c, mem);
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_conditional(starting_pc, addr, "CALL", name_jump_condition(c), condition_met);
+            }
+
+            if condition_met {
+                let vals = u16_to_u8s(mem.r().pc + 2);
+                mem.write_8(mem.r_i().sp - 1, vals.0);
+                mem.write_8(mem.r_i().sp - 2, vals.1);
+                mem.r().sp -= 2;
+
+                mem.r().pc = addr;
                 cycles += 5;
             } else {
                 cycles += 2;
@@ -622,6 +700,11 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
         "11_101_001" => {
             // JP HL
             let addr = mem.r().hl.r16();
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_not_conditional(starting_pc, addr, "JP (HL)");
+            }
+
             mem.r().pc = addr;
         }
         "11_101_110" => {
@@ -741,7 +824,13 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
             mem.write_8(mem.r_i().sp - 2, vals.1);
             mem.r().sp -= 2;
 
-            mem.r().pc = t as u16 * 0x08;
+            let addr = t as u16 * 0x08;
+
+            if DEBUG_TRACK_JUMPS {
+                metrics.jump_not_conditional(starting_pc, addr, "RST");
+            }
+
+            mem.r().pc = addr;
         }
         "11_010_011" => {
             panic!(
@@ -822,7 +911,7 @@ pub fn process_instruction(mem: &mut dyn MemoryController) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::{memory::MemoryController, memory_controllers::basic_memory::BasicMemory};
+    use crate::{debug::metrics::DebugMetrics, memory::MemoryController, memory_controllers::basic_memory::BasicMemory};
 
     use super::process_instruction;
 
@@ -830,6 +919,7 @@ mod tests {
     fn push_pop_same_val() {
         let mut m = BasicMemory::default();
         let initial_bc = 0xDEAD;
+        let mut metrics = DebugMetrics::new();
 
         m.r().bc.s16(initial_bc);
         m.r().pc = 0x8000;
@@ -838,9 +928,9 @@ mod tests {
         m.write_8(0x8000, 0b11000101);
         // POP bc
         m.write_8(0x8001, 0b11000001);
-        process_instruction(&mut m);
+        process_instruction(&mut m, &mut metrics);
         m.r().bc.s16(0);
-        process_instruction(&mut m);
+        process_instruction(&mut m, &mut metrics);
         assert_eq!(
             m.r().bc.r16(),
             initial_bc,
@@ -851,6 +941,7 @@ mod tests {
     #[test]
     fn pop_register_order() {
         let mut m = BasicMemory::default();
+        let mut metrics = DebugMetrics::new();
 
         m.r().sp = 0xFFFC;
         m.write_8(0xFFFC, 0x5F);
@@ -858,7 +949,7 @@ mod tests {
 
         m.r().pc = 0x8000;
         m.write_8(0x8000, 0b11_000_001);
-        process_instruction(&mut m);
+        process_instruction(&mut m, &mut metrics);
 
         assert_eq!(m.r().bc.ind.0, 0x3C);
         assert_eq!(m.r().bc.ind.1, 0x5F);
@@ -867,12 +958,13 @@ mod tests {
     #[test]
     fn ld_16_byte_register_contents() {
         let mut m = BasicMemory::default();
+        let mut metrics = DebugMetrics::new();
         m.r().pc = 0x8000;
         m.write_8(0x8000, 0b00_100_001);
         // Gameboy is little-endian, so least significant byte comes first
         m.write_8(0x8001, 0x5B);
         m.write_8(0x8002, 0x3A);
-        process_instruction(&mut m);
+        process_instruction(&mut m, &mut metrics);
         assert_eq!(m.r().hl.r16(), 0x3A5B);
         assert_eq!(m.r().hl.ind.0, 0x3A);
         assert_eq!(m.r().hl.ind.1, 0x5B);

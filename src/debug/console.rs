@@ -1,73 +1,16 @@
-use std::{
-    io,
-    str::Split,
-    sync::mpsc::{self, Receiver},
-    thread,
-    time::Duration,
-};
+use std::thread;
+use std::sync::mpsc::Receiver;
+use std::time::Duration;
+use std::str::Split;
+use std::sync::mpsc;
+use std::io;
+
+use indoc::indoc;
 
 use crate::memory::MemoryController;
 use crate::constants::*;
 
-use indoc::indoc;
-
-// probably bad for performance
-pub const DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION: bool = true;
-
-pub const DEBUG_SHOW_FPS: bool = false;
-
-pub const DEBUG_PRINT_PC: bool = false;
-pub const DEBUG_PRINT_PPU: bool = false;
-pub const DEBUG_PRINT_FRAME_TIME: bool = false;
-pub const DEBUG_PRINT_VRAM_WRITES: bool = false;
-pub const DEBUG_PRINT_INTERRUPTS: bool = false;
-
-pub const DEBUG_PRINT_WHEN_PC: u16 = 0x28;
-pub const DEBUG_PRINT_WHEN_PC_TIMES: u8 = 0;
-
-pub enum WatchType {
-    Rising,
-    Constant,
-    Falling,
-}
-
-pub struct Watch {
-    name: &'static str,
-    eval_fn: Box<dyn Fn(&dyn MemoryController) -> bool>,
-    watch_type: WatchType,
-    last_result: bool,
-}
-
-impl Watch {
-    pub fn new(
-        name: &'static str,
-        eval_fn: Box<dyn Fn(&dyn MemoryController) -> bool>,
-        watch_type: WatchType,
-    ) -> Self {
-        Watch {
-            name,
-            eval_fn,
-            watch_type,
-            last_result: false,
-        }
-    }
-
-    pub fn test(&mut self, mem: &dyn MemoryController) -> bool {
-        let val = (self.eval_fn)(mem);
-        let trigger = match self.watch_type {
-            WatchType::Rising => val && !self.last_result,
-            WatchType::Constant => val,
-            WatchType::Falling => !val && self.last_result,
-        };
-
-        self.last_result = val;
-        trigger
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-}
+use super::{flags::DEBUG_TRACK_JUMPS, metrics::{self, DebugMetrics}};
 
 enum CommandResult {
     PauseGame,
@@ -96,7 +39,7 @@ impl DebugConsole {
         }
     }
 
-    pub fn run(&mut self, mem: &mut dyn MemoryController) {
+    pub fn run(&mut self, mem: &mut dyn MemoryController, metrics: &mut DebugMetrics) {
         let mut pause = self.pause_next;
         self.pause_next = false;
 
@@ -129,7 +72,7 @@ impl DebugConsole {
         }
 
         loop {
-            match self.check_command(mem) {
+            match self.check_command(mem, metrics) {
                 CommandResult::PauseGame => {
                     pause = true;
                 }
@@ -152,7 +95,7 @@ impl DebugConsole {
         }
     }
 
-    fn check_command(&mut self, mem: &mut dyn MemoryController) -> CommandResult {
+    fn check_command(&mut self, mem: &mut dyn MemoryController, metrics: &mut DebugMetrics) -> CommandResult {
         match self.input.try_recv() {
             Ok(mut value) => {
                 value = value.to_lowercase();
@@ -243,6 +186,23 @@ impl DebugConsole {
                     "q" | "quit" => {
                         panic!("Quit command issued");
                     }
+                    "j" | "jumps" => {
+                        if DEBUG_TRACK_JUMPS {
+                            metrics.print_jumps();
+                        } else {
+                            println!("Jumps not being tracked");
+                        }
+                        CommandResult::None
+                    }
+                    "jc" | "jumps_clear" => {
+                        if DEBUG_TRACK_JUMPS {
+                            metrics.clear_jumps();
+                            println!("jumps cleared");
+                        } else {
+                            println!("Jumps not being tracked");
+                        }
+                        CommandResult::None
+                    }
                     "h" | "help" => {
                         println!(indoc! {"
                             Note: Addresses should be specified in hexadecimal without any prefix. eg 0xbeef is beef
@@ -259,6 +219,8 @@ impl DebugConsole {
                             break_clear
                             watch <addr> - prints this address's value when the program breaks/pauses
                             watch_clear
+                            jumps
+                            jumps_clear
                             quit
                             help
                         "});

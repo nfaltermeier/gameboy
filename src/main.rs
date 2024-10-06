@@ -4,6 +4,7 @@ extern crate bitmatch;
 mod constants;
 mod debug;
 mod lcd;
+mod my_lib;
 mod memory;
 mod memory_controllers;
 mod model;

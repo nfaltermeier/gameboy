@@ -7,13 +7,7 @@ use std::{
 use morton_encoding::morton_encode;
 
 use crate::{
-    constants::*,
-    debug::{DebugConsole, Watch, WatchType, DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION},
-    lcd::Lcd,
-    memory::MemoryController,
-    memory_controllers::basic_memory::BasicMemory,
-    model::model_render::{OamScanData, PixelRenderData, PpuData},
-    opcodes::{process_instruction, u16_to_u8s},
+    constants::*, debug::{console::DebugConsole, flags::DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION, metrics::DebugMetrics, watch::Watch}, lcd::Lcd, memory::MemoryController, memory_controllers::basic_memory::BasicMemory, model::model_render::{OamScanData, PixelRenderData, PpuData}, opcodes::{process_instruction, u16_to_u8s}
 };
 
 pub async fn boot(rom: Vec<u8>) {
@@ -54,6 +48,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
     let mut ime_actually_enable_next = false;
     let mut time_next_instruction = Instant::now();
     let mut watches = create_watches();
+    let mut metrics = DebugMetrics::new();
 
     let mut time_next_ppu = Instant::now();
     let mut dots_left = 1;
@@ -105,7 +100,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
         }
 
         if now >= time_next_instruction {
-            debug_console.run(mem);
+            debug_console.run(mem, &mut metrics);
 
             if ime_actually_enabled {
                 // Check interrupts
@@ -143,7 +138,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
             if !interrupt_triggered {
                 let pc = mem.r_i().pc;
                 let cycles = if DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION {
-                    let result = panic::catch_unwind(AssertUnwindSafe(|| process_instruction(mem)));
+                    let result = panic::catch_unwind(AssertUnwindSafe(|| process_instruction(mem, &mut metrics)));
                     match result {
                         Ok(c) => {
                             c
@@ -156,7 +151,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
                         }
                     }
                 } else {
-                    process_instruction(mem)
+                    process_instruction(mem, &mut metrics)
                 };
 
                 for watch in &mut watches {
@@ -190,7 +185,7 @@ async fn run_loop(mem: &mut dyn MemoryController) {
             let mut stat = mem.read_8(ADDRESS_STAT);
             let mut ppu_mode = stat & 0b00000011;
 
-            if crate::debug::DEBUG_PRINT_PPU {
+            if crate::debug::flags::DEBUG_PRINT_PPU {
                 println!("dots_left: {}", dots_left);
                 println!("ppu_mode: {}", ppu_mode);
             }

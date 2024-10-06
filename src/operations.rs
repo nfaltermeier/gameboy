@@ -288,19 +288,3 @@ pub fn set(a: u8, b: u8) -> u8 {
 pub fn res(a: u8, b: u8) -> u8 {
     a & !(1 << b)
 }
-
-pub fn call(mem: &mut dyn MemoryController) {
-    let vals = u16_to_u8s(mem.r().pc + 2);
-    mem.write_8(mem.r_i().sp - 1, vals.0);
-    mem.write_8(mem.r_i().sp - 2, vals.1);
-    mem.r().sp -= 2;
-
-    let addr = u8s_to_u16(mem.read_8(mem.r_i().pc + 1), mem.read_8(mem.r_i().pc));
-    mem.r().pc = addr;
-}
-
-pub fn ret(mem: &mut dyn MemoryController) {
-    let addr = u8s_to_u16(mem.read_8(mem.r_i().sp + 1), mem.read_8(mem.r_i().sp));
-    mem.r().pc = addr;
-    mem.r().sp += 2;
-}
