@@ -7,7 +7,7 @@ use std::{
 use morton_encoding::morton_encode;
 
 use crate::{
-    constants::*, debug::{console::DebugConsole, flags::DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION, metrics::DebugMetrics, watch::Watch}, lcd::Lcd, memory::MemoryController, memory_controllers::basic_memory::BasicMemory, model::model_render::{OamScanData, PixelRenderData, PpuData}, opcodes::{process_instruction, u16_to_u8s}
+    constants::*, debug::{console::DebugConsole, flags::DEBUG_TRY_UNWIND_PROCESS_INSTRUCTION, metrics::DebugMetrics, watch::{Watch, WatchFn, WatchValueChange}}, lcd::Lcd, memory::MemoryController, memory_controllers::basic_memory::BasicMemory, model::model_render::{OamScanData, PixelRenderData, PpuData}, opcodes::{process_instruction, u16_to_u8s}
 };
 
 pub async fn boot(rom: Vec<u8>) {
@@ -33,13 +33,14 @@ pub async fn boot(rom: Vec<u8>) {
     run_loop(&mut *mem).await;
 }
 
-fn create_watches() -> Vec<Watch> {
+fn create_watches() -> Vec<Box<dyn Watch>> {
     vec![
-        // Watch::new(
+        // WatchFn::new(
         //     "sp cfff",
         //     Box::from(|mem: &dyn MemoryController| mem.r_i().sp == 0xcfff),
-        //     WatchType::Rising,
+        //     WatchFnType::Rising,
         // ),
+        // Box::new(WatchValueChange::new("mem 0xff80", Box::new(|mem: &dyn MemoryController| mem.read_8_sys(0xff80))))
     ]
 }
 
@@ -101,6 +102,8 @@ async fn run_loop(mem: &mut dyn MemoryController) {
 
         if now >= time_next_instruction {
             debug_console.run(mem, &mut metrics);
+
+            mem.process_input();
 
             if ime_actually_enabled {
                 // Check interrupts

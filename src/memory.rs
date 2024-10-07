@@ -97,12 +97,27 @@ impl Debug for Registers {
             .finish()
     }
 }
+
+#[derive(Default)]
+pub struct Inputs {
+    pub down: bool,
+    pub up: bool,
+    pub left: bool,
+    pub right: bool,
+    pub start: bool,
+    pub select: bool,
+    pub b: bool,
+    pub a: bool,
+    pub reset: bool,
+}
+
 #[derive(Default)]
 pub struct MemorySharedData {
     pub r: Registers,
     pub ime: bool,
     // todo: CPU and PPU access to memory is restricted while a DMA transfer is active
     pub dma_source_address: u16,
+    pub inputs: Inputs
 }
 
 pub trait MemoryController {
@@ -113,6 +128,12 @@ pub trait MemoryController {
 
     fn write_8(&mut self, addr: u16, mut val: u8) {
         match addr {
+            ADDRESS_JOYP => {
+                let joyp_orig = self.read_8_sys(ADDRESS_JOYP);
+                self.write_8_sys(ADDRESS_JOYP, (joyp_orig & !0x30) | (val & 0x30));
+                self.process_input();
+                return;
+            },
             ADDRESS_DIV => {
                 val = 0;
             },
@@ -145,6 +166,58 @@ pub trait MemoryController {
     }
     fn ime(&mut self) -> &mut bool {
         &mut self.shared_data_mut().ime
+    }
+
+    fn process_input(&mut self) {
+        let joyp_orig = self.read_8_sys(ADDRESS_JOYP);
+        let input = &self.shared_data().inputs;
+
+        let mut joyp_new = joyp_orig | 0x0f;
+        if (joyp_new & 0x30) != 0x30 {
+            if joyp_new & (1 << 4) != 0 {
+                if input.right {
+                    joyp_new &= !(1);
+                }
+    
+                if input.left {
+                    joyp_new &= !(1 << 1);
+                }
+    
+                if input.up {
+                    joyp_new &= !(1 << 2);
+                }
+    
+                if input.down {
+                    joyp_new &= !(1 << 3);
+                }
+            }
+            
+            if joyp_new & (1 << 5) != 0 {
+                if input.a {
+                    joyp_new &= !(1);
+                }
+    
+                if input.b {
+                    joyp_new &= !(1 << 1);
+                }
+    
+                if input.select {
+                    joyp_new &= !(1 << 2);
+                }
+    
+                if input.start {
+                    joyp_new &= !(1 << 3);
+                }
+            }
+        }
+
+        self.write_8_sys(ADDRESS_JOYP, joyp_new);
+
+        let interrupt_request = self.read_8_sys(ADDRESS_IF);
+        if (joyp_new & 0x0f) != 0x0f && joyp_new != joyp_orig {
+            // it seems like IF is not cleared if the button is no longer held. todo figure out?
+            self.write_8_sys(ADDRESS_IF, interrupt_request | (1 << 4));
+        }
     }
 }
 

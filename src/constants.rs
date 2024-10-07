@@ -6,6 +6,7 @@ pub const ADDRESS_TILEDATA_2: u16 = 0x8800;
 pub const ADDRESS_TILEMAP_1: u16 = 0x9800;
 pub const ADDRESS_TILEMAP_2: u16 = 0x9C00;
 pub const ADDRESS_OAM_START: u16 = 0xFE00;
+pub const ADDRESS_JOYP: u16 = 0xFF00;
 pub const ADDRESS_DIV: u16 = 0xFF04;
 pub const ADDRESS_TIMA: u16 = 0xFF05;
 pub const ADDRESS_TMA: u16 = 0xFF06;

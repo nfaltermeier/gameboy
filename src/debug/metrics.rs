@@ -34,7 +34,7 @@ impl DebugMetrics {
         }
     }
 
-    pub fn print_jumps(&mut self) {
+    pub fn print_jumps(&mut self, highlight_addrs: &Vec<u16>) {
         println!("Jumps:");
 
         self.jumps.cache_keys();
@@ -45,7 +45,7 @@ impl DebugMetrics {
             // assuming all interrupy handlers immediately jump
             // if entrypoint || *j == 0x40 || *j == 0x48 || *j == 0x50 || *j == 0x58 || *j == 0x60 {
             if entrypoint {
-                print!("{}", self.calc_jumps_tree(0, *j, &Vec::new()).1);
+                print!("{}", self.calc_jumps_tree(0, *j, &Vec::new(), highlight_addrs).1);
 
                 if entrypoint {
                     break;
@@ -56,22 +56,30 @@ impl DebugMetrics {
 
     const INDENT_STR: &'static str = "  ";
 
-    fn calc_jumps_tree(&self, indent: usize, addr: u16, parent_conditionals: &Vec<u16>) -> (usize, String) {
+    fn calc_jumps_tree(&self, indent: usize, addr: u16, parent_conditionals: &Vec<u16>, highlight_addrs: &Vec<u16>) -> (usize, String) {
         let mut cur_jump_o = self.jumps.get_or_next(&addr).unwrap();
         let mut lines: usize = 0;
         let mut result = String::new();
+        let mut last_addr = addr;
 
         while cur_jump_o.is_some() {
             let cur_jump = cur_jump_o.unwrap();
             let already_visited = cur_jump.conditional && parent_conditionals.contains(&cur_jump.source);
+
+            if !already_visited {
+                for addr in highlight_addrs.iter().filter(|addr| last_addr <= **addr && cur_jump.source > **addr) {
+                    result.push_str(format!("{}---- {addr:#06x} ----\n", Self::INDENT_STR.repeat(indent)).as_str());
+                    lines += 1;
+                }
+            }
 
             let next: u16;
             if cur_jump.conditional && cur_jump.jump_skipped && cur_jump.jump_taken {
                 if !already_visited {
                     let mut new_parents = parent_conditionals.clone();
                     new_parents.push(cur_jump.source);
-                    let taken = self.calc_jumps_tree(indent + 1, cur_jump.dest, &new_parents);
-                    let skipped = self.calc_jumps_tree(indent + 1, cur_jump.source + 1, &new_parents);
+                    let taken = self.calc_jumps_tree(indent + 1, cur_jump.dest, &new_parents, highlight_addrs);
+                    let skipped = self.calc_jumps_tree(indent + 1, cur_jump.source + 1, &new_parents, highlight_addrs);
 
                     result.push_str(format!("{}{} -> {:#06x}\n", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
                     if skipped.0 <= taken.0 {
@@ -111,6 +119,7 @@ impl DebugMetrics {
                 return (lines, result);
             }
 
+            last_addr = next;
             cur_jump_o = self.jumps.get_or_next(&next).unwrap();
         }
 

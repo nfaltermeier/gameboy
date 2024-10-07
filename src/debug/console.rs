@@ -1,4 +1,4 @@
-use std::thread;
+use std::{slice::Iter, thread};
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 use std::str::Split;
@@ -10,7 +10,7 @@ use indoc::indoc;
 use crate::memory::MemoryController;
 use crate::constants::*;
 
-use super::{flags::DEBUG_TRACK_JUMPS, metrics::{self, DebugMetrics}};
+use super::{flags::DEBUG_TRACK_JUMPS, metrics::DebugMetrics};
 
 enum CommandResult {
     PauseGame,
@@ -188,7 +188,21 @@ impl DebugConsole {
                     }
                     "j" | "jumps" => {
                         if DEBUG_TRACK_JUMPS {
-                            metrics.print_jumps();
+                            let mut highlight_addrs = Vec::new();
+                            loop {
+                                if words.clone().count() == 0 {
+                                    break;
+                                }
+
+                                match Self::parse_next_as_u16(&mut words, highlight_addrs.len() + 1) {
+                                    Some(addr) => {
+                                        highlight_addrs.push(addr);
+                                    }
+                                    None => { break; }
+                                };
+                            }
+
+                            metrics.print_jumps(&highlight_addrs);
                         } else {
                             println!("Jumps not being tracked");
                         }
@@ -236,7 +250,7 @@ impl DebugConsole {
         }
     }
 
-    fn parse_next_as_u16(split: &mut Split<'_, char>, argument_number: u8) -> Option<u16> {
+    fn parse_next_as_u16(split: &mut dyn Iterator<Item = &str>, argument_number: usize) -> Option<u16> {
         match split.next() {
             Some(val_str) => match u16::from_str_radix(val_str, 16) {
                 Ok(val) => Some(val),
