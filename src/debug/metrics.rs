@@ -1,9 +1,20 @@
-use core::cmp::Reverse;
+use std::collections::HashSet;
 
 use crate::my_lib::sparse_vec::SparseVec;
 
 pub struct DebugMetrics {
     jumps: SparseVec<u16, JumpData>,
+}
+
+struct MultipleDestinationsData {
+    lines: usize,
+    dest: u16,
+    result: String,
+}
+
+struct JumpTreeData {
+    lines: usize,
+    result: String,
 }
 
 impl DebugMetrics {
@@ -16,6 +27,8 @@ impl DebugMetrics {
     pub fn jump_conditional(&mut self, source: u16, dest: u16, instruction_name: &'static str, condition_name: &'static str, jump_taken: bool) {
         match self.jumps.get_mut(&source) {
             Some(jump) => {
+                assert_eq!(jump.dest, dest, "conditional jumps with multiple destinations (dynamic programming?) not supported. Disable tracking jumps to prevent this panic.");
+
                 if jump_taken {
                     jump.jump_taken = true;
                 } else {
@@ -29,9 +42,14 @@ impl DebugMetrics {
     }
 
     pub fn jump_not_conditional(&mut self, source: u16, dest: u16, instruction_name: &'static str) {
-        if !self.jumps.contains_key(&source) {
-            self.jumps.insert(source, JumpData::new_not_conditional(source, dest, instruction_name));
-        }
+        match self.jumps.get_mut(&source) {
+            Some(jump) => {
+                jump.update_destinations(dest);
+            },
+            None => {
+                self.jumps.insert(source, JumpData::new_not_conditional(source, dest, instruction_name));
+            }
+        };
     }
 
     pub fn print_jumps(&mut self, highlight_addrs: &Vec<u16>) {
@@ -45,7 +63,7 @@ impl DebugMetrics {
             // assuming all interrupy handlers immediately jump
             // if entrypoint || *j == 0x40 || *j == 0x48 || *j == 0x50 || *j == 0x58 || *j == 0x60 {
             if entrypoint {
-                print!("{}", self.calc_jumps_tree(0, *j, &Vec::new(), highlight_addrs).1);
+                print!("{}", self.calc_jumps_tree(0, *j, &mut Vec::new(), highlight_addrs).result);
 
                 if entrypoint {
                     break;
@@ -56,7 +74,7 @@ impl DebugMetrics {
 
     const INDENT_STR: &'static str = "  ";
 
-    fn calc_jumps_tree(&self, indent: usize, addr: u16, parent_conditionals: &Vec<u16>, highlight_addrs: &Vec<u16>) -> (usize, String) {
+    fn calc_jumps_tree(&self, indent: usize, addr: u16, mut parents: &mut Vec<u16>, highlight_addrs: &Vec<u16>) -> JumpTreeData {
         let mut cur_jump_o = self.jumps.get_or_next(&addr).unwrap();
         let mut lines: usize = 0;
         let mut result = String::new();
@@ -64,7 +82,8 @@ impl DebugMetrics {
 
         while cur_jump_o.is_some() {
             let cur_jump = cur_jump_o.unwrap();
-            let already_visited = cur_jump.conditional && parent_conditionals.contains(&cur_jump.source);
+            let already_visited = parents.contains(&cur_jump.source);
+            parents.push(cur_jump.source);
 
             if !already_visited {
                 for addr in highlight_addrs.iter().filter(|addr| last_addr <= **addr && cur_jump.source > **addr) {
@@ -74,56 +93,92 @@ impl DebugMetrics {
             }
 
             let next: u16;
-            if cur_jump.conditional && cur_jump.jump_skipped && cur_jump.jump_taken {
-                if !already_visited {
-                    let mut new_parents = parent_conditionals.clone();
-                    new_parents.push(cur_jump.source);
-                    let taken = self.calc_jumps_tree(indent + 1, cur_jump.dest, &new_parents, highlight_addrs);
-                    let skipped = self.calc_jumps_tree(indent + 1, cur_jump.source + 1, &new_parents, highlight_addrs);
+            if cur_jump.conditional {
+                if cur_jump.jump_skipped && cur_jump.jump_taken {
+                    if !already_visited {
+                        let taken = self.calc_jumps_tree(indent + 1, cur_jump.dest, &mut parents, highlight_addrs);
 
-                    result.push_str(format!("{}{} -> {:#06x}\n", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
-                    if skipped.0 <= taken.0 {
-                        result.push_str(format!("{}skipped:\n{}", Self::INDENT_STR.repeat(indent), skipped.1).as_str());
-                        result.push_str(format!("{}taken:\n{}", Self::INDENT_STR.repeat(indent), taken.1).as_str());
+                        if taken.lines == 1 && taken.result.trim_start().starts_with(format!("{:#06x}", cur_jump.source).as_str()) {
+                            result.push_str(format!("{}{} -> {:#06x} (taken simple loop, following skipped)", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
+                            lines += 1;
+                            next = cur_jump.source + 1;
+                        } else {
+                            let skipped = self.calc_jumps_tree(indent + 1, cur_jump.source + 1, &mut parents, highlight_addrs);
+        
+                            result.push_str(format!("{}{} -> {:#06x}\n", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
+                            if skipped.lines <= taken.lines {
+                                result.push_str(format!("{}skipped:\n{}", Self::INDENT_STR.repeat(indent), skipped.result).as_str());
+                                result.push_str(format!("{}taken:\n{}", Self::INDENT_STR.repeat(indent), taken.result).as_str());
+                            } else {
+                                result.push_str(format!("{}taken:\n{}", Self::INDENT_STR.repeat(indent), taken.result).as_str());
+                                result.push_str(format!("{}skipped:\n{}", Self::INDENT_STR.repeat(indent), skipped.result).as_str());
+                            }
+                            lines += skipped.lines + taken.lines + 3;
+                            return JumpTreeData { lines, result };
+                        }
                     } else {
-                        result.push_str(format!("{}taken:\n{}", Self::INDENT_STR.repeat(indent), taken.1).as_str());
-                        result.push_str(format!("{}skipped:\n{}", Self::INDENT_STR.repeat(indent), skipped.1).as_str());
+                        result.push_str(format!("{}{} -> {:#06x} (taken and skipped, already visited)\n", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
+                        lines += 1;
+                        return JumpTreeData { lines, result };
                     }
-                    lines += skipped.0 + taken.0 + 3;
-                } else {
-                    result.push_str(format!("{}{} -> {:#06x} (previous conditional)\n", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
+                } else if cur_jump.jump_skipped {
+                    result.push_str(format!("{}{} -> {:#06x} (skipped)", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.source + 1).as_str());
                     lines += 1;
+                    next = cur_jump.source + 1;
+                } else {
+                    result.push_str(format!("{}{} -> {:#06x} (taken)", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
+                    lines += 1;
+                    next = cur_jump.dest;
                 }
-
-                return (lines, result);
-            } else if !cur_jump.conditional {
-                result.push_str(Self::INDENT_STR.repeat(indent).as_str());
-                result.push_str(cur_jump.name.as_str());
-                result.push('\n');
-                lines += 1;
-                next = cur_jump.dest;
-            } else if cur_jump.jump_skipped {
-                result.push_str(format!("{}{} -> {:#06x} (skipped)\n", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.source + 1).as_str());
-                lines += 1;
-                next = cur_jump.source + 1;
             } else {
-                result.push_str(format!("{}{} -> {:#06x} (taken)\n", Self::INDENT_STR.repeat(indent), cur_jump.name, cur_jump.dest).as_str());
-                lines += 1;
-                next = cur_jump.dest;
+                if cur_jump.multiple_destinations {
+                    if already_visited {
+                        result.push_str(format!("{}{} (multiple destinations, already visited)\n", Self::INDENT_STR.repeat(indent), cur_jump.name).as_str());
+                        lines += 1;
+                        return JumpTreeData { lines, result };
+                    }
+
+                    let mut paths: Vec<_> = cur_jump.destinations
+                        .iter()
+                        .map(|dest| {
+                            let data = self.calc_jumps_tree(indent + 1, *dest, &mut parents, highlight_addrs);
+                            MultipleDestinationsData { dest: *dest, lines: data.lines, result: data.result}
+                        })
+                        .collect();
+
+                    paths.sort_by_key(|i| i.lines);
+
+                    result.push_str(format!("{}{} (multiple destinations)\n", Self::INDENT_STR.repeat(indent), cur_jump.name).as_str());
+                    lines += 1;
+                    for (index, val) in paths.iter().enumerate() {
+                        result.push_str(format!("{}destination {}: {:#06x}\n{}", Self::INDENT_STR.repeat(indent), index + 1, val.dest, val.result).as_str());
+                        lines += val.lines + 1;
+                    }
+
+                    return JumpTreeData { lines, result };
+                } else {
+                    result.push_str(Self::INDENT_STR.repeat(indent).as_str());
+                    result.push_str(cur_jump.get_name().as_str());
+                    lines += 1;
+                    next = cur_jump.dest;
+                }
             }
 
             // todo: branching from jp (hl) instructions with destinations targets
             // todo: prevent infinite loops? maybe already done.
 
             if already_visited {
-                return (lines, result);
+                result.push_str(" (already visited)\n");
+                return JumpTreeData { lines, result };
+            } else {
+                result.push('\n');
             }
 
             last_addr = next;
             cur_jump_o = self.jumps.get_or_next(&next).unwrap();
         }
 
-        (lines, result)
+        JumpTreeData { lines, result }
     }
 
     pub fn clear_jumps(&mut self) {
@@ -138,6 +193,8 @@ pub struct JumpData {
     conditional: bool,
     jump_taken: bool,
     jump_skipped: bool,
+    multiple_destinations: bool,
+    destinations: HashSet<u16>,
 }
 
 impl JumpData {
@@ -149,6 +206,8 @@ impl JumpData {
             conditional: true,
             jump_taken,
             jump_skipped: !jump_taken,
+            multiple_destinations: false,
+            destinations: HashSet::with_capacity(0),
         }
     }
 
@@ -156,10 +215,35 @@ impl JumpData {
         JumpData {
             source,
             dest,
-            name: format!("{source:#06x}: {instruction_name} -> {dest:#06x}"),
+            name: format!("{source:#06x}: {instruction_name}"),
             conditional: false,
             jump_taken: true,
             jump_skipped: false,
+            multiple_destinations: false,
+            destinations: HashSet::with_capacity(0),
+        }
+    }
+
+    pub fn update_destinations(&mut self, new_dest: u16) {
+        if self.multiple_destinations || new_dest != self.dest {
+            if !self.multiple_destinations {
+                self.destinations.insert(self.dest);
+                // half-measure to indicate the destination is no longer good. Should use an option but don't want to refactor that.
+                self.dest = 0xdbad;
+                self.multiple_destinations = true;
+            }
+    
+            if !self.destinations.contains(&new_dest) {
+                self.destinations.insert(new_dest);
+            }
+        }
+    }
+
+    pub fn get_name(&self) -> String {
+        if !self.multiple_destinations && !self.conditional {
+            format!("{} -> {:#06x}", self.name, self.dest)
+        } else {
+            self.name.clone()
         }
     }
 }
